@@ -27,9 +27,8 @@ def parseGames(gameInput: String) = {
     val possibleBagContent = Map(("blue" -> 14), ("green" -> 13), ("red" -> 12))
     Using.Manager { use =>
 
-        val inputBufferedSource = use(Source.fromResource("day2/input.txt"))
-        val gameIdsSum = inputBufferedSource.getLines()
-                        .map(parseGames)
+        val input = use(Source.fromResource("day2/input.txt")).getLines().toSeq.map(parseGames)
+        val gameIdsSum = input
                         .filter(game => possibleBagContent.keys.forall(color => {
                             val bagColorCount = possibleBagContent.getOrElse(color, 0)
                             val gameColorCount = game.cubePicks.getOrElse(color, 0)
@@ -40,6 +39,9 @@ def parseGames(gameInput: String) = {
                         .sum
 
         println(f"Game ids sum: ${gameIdsSum}")
-        
+
+
+        val powerStats = input.foldLeft(0)((sum, game) => sum + game.cubePicks.values.reduce((cp1, cp2) => cp1 * cp2))
+        println(f"Power stats value is ${powerStats}")
     }
 }
