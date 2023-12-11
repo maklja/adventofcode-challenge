@@ -6,7 +6,25 @@ case class Position(x: Int, y: Int)
 enum EngineSchemaType: 
    case EnginePart, Symbol, Empty
 
-case class EngineSchemaEntity(value: String, `type`: EngineSchemaType, position: Position)
+case class EngineSchemaEntity(value: String, `type`: EngineSchemaType, position: Position) {
+    def containsPosition(p: Position): Boolean = {
+        val entityPositions = generatePositions(position, value.size)
+        entityPositions.exists(curPosition => curPosition.equals(p))
+    }
+
+    private def generatePositions(p: Position, size: Int): Seq[Position] = {
+        val prevRow = p.x - 1
+        val nextRow = p.x + 1
+
+        val columnRange = Range.inclusive(p.y - 1, p.y + size)
+        val prevRowPositions = columnRange.map(colIdx => Position(prevRow, colIdx))
+        val nextRowPositions = columnRange.map(colIdx => Position(nextRow, colIdx))
+        val leftPosition = Position(p.x, p.y - 1)
+        val rightPosition = Position(p.x, p.y + size)
+
+        prevRowPositions ++ nextRowPositions :+ leftPosition :+ rightPosition
+    }
+}
 
 def hasHandlerMatch(c: Char): EngineSchemaType =
     if (c.isDigit) {
@@ -50,51 +68,35 @@ def parseEngineSchemaLine(line: String, rowIdx: Int, colIdx: Int): Seq[EngineSch
         }
 }
 
-def generatePositions(p: Position, size: Int): Seq[Position] = {
-    val prevRow = p.x - 1
-    val nextRow = p.x + 1
-
-    val columnRange = Range.inclusive(p.y - 1, p.y + size)
-    val prevRowPositions = columnRange.map(colIdx => Position(prevRow, colIdx))
-    val nextRowPositions = columnRange.map(colIdx => Position(nextRow, colIdx))
-    val leftPosition = Position(p.x, p.y - 1)
-    val rightPosition = Position(p.x, p.y + size)
-
-    prevRowPositions ++ nextRowPositions :+ leftPosition :+ rightPosition
-}
-
-def retrieveValidEngineParts(rowIdx: Int, 
-                            engineParts: Map[Position, EngineSchemaEntity], 
-                            symbols: Map[Position, EngineSchemaEntity]): Seq[Int] = {
-    val rowEngineParts = engineParts.values.filter( _.position.x == rowIdx ).toSeq
-    rowEngineParts.filter(enginePart => {
-        val nearPositions = generatePositions(enginePart.position, enginePart.value.length)
-        nearPositions.exists(p => symbols.exists{ _._1 == p })
-    }).map( enginePart => enginePart.value.toInt )
+def retrieveValidEngineParts(engineParts: Map[Position, EngineSchemaEntity], 
+                             symbols: Seq[EngineSchemaEntity]): Seq[Int] = {
+    symbols.filter( _.value.equals("*") ).flatMap(symbol => {
+        val affectedRows = Seq[Int](symbol.position.x, symbol.position.x -1, symbol.position.x + 1);
+        val affectedEngineParts = engineParts.values
+                                            .filter(enginePart => affectedRows.contains(enginePart.position.x) && enginePart.containsPosition(symbol.position))
+                                            .map( _.value.toInt )
+                                            .toSeq
+        if (affectedEngineParts.length > 1) {
+            val sumValue = affectedEngineParts.reduceLeft((sum, enginePart) => sum * enginePart)
+            Seq(sumValue)
+        } else {
+            Seq()
+        }
+    })
 }
 
 def processEngineSchema(engineSchema: Seq[String]) = {
     var engineParts = Map[Position, EngineSchemaEntity]()
-    var symbols = Map[Position, EngineSchemaEntity]()
-    var validEngineParts = Seq[Int]()
+    var symbols = Seq[EngineSchemaEntity]()
 
     engineSchema.zipWithIndex.foreach((line, i) => {
         val lineEngineSchemaEntities = parseEngineSchemaLine(line, i, 0)
         engineParts ++= lineEngineSchemaEntities.filter { _.`type` == EngineSchemaType.EnginePart }
                                                 .foldLeft(Map[Position, EngineSchemaEntity]())((map, entity) => map + (entity.position -> entity))
         symbols ++= lineEngineSchemaEntities.filter { _.`type` == EngineSchemaType.Symbol }
-                                                .foldLeft(Map[Position, EngineSchemaEntity]())((map, entity) => map + (entity.position -> entity))
-
-        if (i - 1 >= 0) {
-            val rowValidEngineParts = retrieveValidEngineParts(i - 1, engineParts, symbols)
-            println(f"${i-1} - ${rowValidEngineParts}")
-            validEngineParts ++= rowValidEngineParts
-
-        }
     })
 
-    validEngineParts ++= retrieveValidEngineParts(engineSchema.length - 1, engineParts, symbols)
-    validEngineParts
+    retrieveValidEngineParts(engineParts, symbols)
 }
 
 @main def day3Solution: Unit = {
