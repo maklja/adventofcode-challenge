@@ -35,6 +35,6 @@ def processCardWinningNumbers(cardsData: Seq[String]) =
         val engineSchema = use(Source.fromResource("day4/input.txt")).getLines().toSeq
         val totalCards = processCardWinningNumbers(engineSchema).values.sum
 
-         println(f"Total cards sum: ${totalCards}")
+        println(f"Total cards sum: ${totalCards}")
     }
 }
