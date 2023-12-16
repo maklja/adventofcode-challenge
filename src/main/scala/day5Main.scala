@@ -2,35 +2,27 @@ import scala.io.Source
 import scala.util.Using
 
 case class MapRange(destinationStart: Long, sourceStart: Long, length: Long) {
-    def mapValue(value: Long): Option[Long] = {
-        if (value >= sourceStart && value <= sourceStart + length - 1) {
-            val diff = value - sourceStart
-            return Some(destinationStart + diff)
-        }
+    def canMapValue(value: Long) = value >= sourceStart && value <= sourceStart + length - 1
 
-        None
+    def mapValue(value: Long): Long = {
+        destinationStart + value - sourceStart
     }
 }
 
 case class MapRanges(id: String, ranges: Seq[MapRange]) {
     def mapValue(value: Long): Option[Long] = 
-        ranges.map(range => range.mapValue(value))
-                .find( _.isDefined ) match {
-                    case Some(mappedValue) => mappedValue
-                    case _ => None
-                }
+        ranges.find( _.canMapValue(value) ).map(range => range.mapValue(value))
 }
 
 class MapNode(private val mapRanges: MapRanges, private val nextNode: MapNode) {
 
-    def mapValue(value: Long): Seq[Long] = {
+    def mapValue(value: Long): Long = {
         val mappedValue = mapRanges.mapValue(value).getOrElse(value)
         if (nextNode != null) {
-            mappedValue +: nextNode.mapValue(mappedValue)
+            nextNode.mapValue(mappedValue)
         } else {
-            Seq(mappedValue)
+            mappedValue
         }
-
     }
 
     override def toString(): String = {
@@ -73,27 +65,33 @@ def createMappingChain(mapRanges: Seq[MapRanges]): MapNode = {
         return MapNode(mapRanges.head, null)
     }
 
-    val nextNode = createMappingChain(mapRanges.tail)
-    MapNode(mapRanges.head, nextNode)
-} 
+    MapNode(mapRanges.head, createMappingChain(mapRanges.tail))
+}
 
-def processSeedsLocations(listOfMaps: Seq[String]): Seq[Seq[Long]] = {
+def minLocation(startSeed: Long, seedRange: Long, mapNode: MapNode) = {
+    println(f"Seed ${startSeed}, ${seedRange}")
+    var min: Long = Long.MaxValue
+    for (i <- startSeed to startSeed + seedRange) {
+        min = Math.min(min, mapNode.mapValue(i))
+    }
+    min
+}
+
+def processSeedsLocations(listOfMaps: Seq[String]): Long = {
     val seeds = parseSeeds(listOfMaps.head)
     val mapRanges = parseMappings(listOfMaps.tail)
     val mapNode = createMappingChain(mapRanges)
 
-    seeds.map(seed => seed +: mapNode.mapValue(seed))
+    seeds.sliding(2, 2).map(slidingPair => minLocation(slidingPair(0), slidingPair(1), mapNode))
+        .reduce((min1, min2) => Math.min(min1, min2))
 }
 
 @main def day5Solution: Unit = {
     Using.Manager { use =>
 
-        val listOfMaps = use(Source.fromResource("day5/input.txt")).getLines().toSeq
-        val seedsMappings = processSeedsLocations(listOfMaps)
+        val listOfMaps = use(Source.fromResource("day5/smallInput.txt")).getLines().toSeq
+        val closestLocation = processSeedsLocations(listOfMaps)
 
-        // seedsMappings.foreach(seedMapping => println(seedMapping))
-        
-        val closestLocation = seedsMappings.map(seedMapping => seedMapping.reverse.head).min
         println(f"Closest seed location: ${closestLocation}")
     }
 }
