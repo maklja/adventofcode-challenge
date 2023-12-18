@@ -3,7 +3,7 @@ import scala.util.Using
 
 case class CardBid(card: String, bidAmount: Int, strengthValue: Int)
 
-val cardValues = Seq[Char]('A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2').zipWithIndex
+val cardValues = Seq[Char]('A', 'K', 'Q', 'T', '9', '8', '7', '6', '5', '4', '3', '2', 'J').zipWithIndex
 
 val cardStrength = Seq[String]("5", "41", "32", "311", "221", "2111", "11111").zipWithIndex
 
@@ -34,7 +34,13 @@ def getCardStrength(cardsStrength: String): Int =
                 .map( _._2 ).getOrElse(0)
 
 def calcCardStrengthValue(card: String): Int = {
-    val cardsStrength = card.groupMapReduce( _.toString() )(_ => 1)(_ + _)
+    val cardsStrengthMap = card.groupMapReduce( _.toString() )(_ => 1)(_ + _)
+    val joker = cardsStrengthMap.getOrElse("J", 0)
+    val maxCards = (cardsStrengthMap - "J")
+        .reduceLeftOption((card1, card2) => if(card1._2 > card2._2) card1 else card2)
+        .map(cards => (cards._1, cards._2 + joker))
+        .getOrElse(("AAAAA", joker))
+    val cardsStrength = (cardsStrengthMap - "J" + maxCards)
         .values
         .toSeq
         .sortBy(count => -count)
@@ -51,7 +57,7 @@ def parseCardsData(cardData: Seq[String]) =
 
 @main def day7Solution: Unit = {
     Using.Manager { use =>
-
+        
         val cardData = use(Source.fromResource("day7/input.txt")).getLines().toSeq
         val totalWinnings = parseCardsData(cardData).zipWithIndex
             .foldLeft(0L)((sum, cardBidIdx) => sum + (cardBidIdx._2 + 1) * cardBidIdx._1.bidAmount)
