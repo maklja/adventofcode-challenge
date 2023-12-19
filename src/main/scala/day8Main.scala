@@ -4,7 +4,7 @@ import scala.annotation.tailrec
 
 case class PathIterator(val path: String) {
     private var pathIterator = path
-    private var counter = 0
+    private var counter = 0L
 
     def getCounter() = counter
 
@@ -27,12 +27,9 @@ def parserNetworkNode(nodesData: Seq[String],
     parserNetworkNode(nodesData.tail, networkNode  + (sourceNode -> (leftNode, rightNode)))
 }
 
-val startNode = "AAA"
-val endNode = "ZZZ"
-
 @tailrec
-def findPath(curNode: String, pathIterator: PathIterator, network: Map[String, (String, String)]): Int = {
-    if (curNode.equals(endNode)) {
+def findPathPattern(curNode: String, pathIterator: PathIterator, network: Map[String, (String, String)]): Long = {
+    if (curNode.last == 'Z') {
         return pathIterator.getCounter()
     }
 
@@ -41,14 +38,26 @@ def findPath(curNode: String, pathIterator: PathIterator, network: Map[String, (
         case 'L' => nextNodes._1
         case _ => nextNodes._2
 
-    findPath(nextNode, pathIterator, network)
+    findPathPattern(nextNode, pathIterator, network)
 }
 
-def processNetworkData(networkData: Seq[String]) = {
-    val pathIterator = PathIterator(networkData(0))
+def processNetworkData(networkData: Seq[String]): Long = {
     val network = parserNetworkNode(networkData.slice(2, networkData.length))
 
-    findPath(startNode, pathIterator, network)
+    val startNodes = network.keySet.filter(node => node.last == 'A').toSeq
+    val pathPatterns = startNodes.map(node => {
+        val pathIterator = PathIterator(networkData(0))
+        findPathPattern(node, pathIterator, network)
+    })
+
+    val max = pathPatterns.max
+    val remainingPathPatterns = pathPatterns.filter(pathPattern => pathPattern != max)
+    var commonPathPattern = max
+    while (!remainingPathPatterns.forall(curPathPattern => commonPathPattern % curPathPattern == 0L)) {
+        commonPathPattern = commonPathPattern + max
+    }
+
+    commonPathPattern
 }
 
 @main def day8Solution: Unit = {
