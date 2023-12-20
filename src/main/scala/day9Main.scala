@@ -11,7 +11,7 @@ def calcSensorHistoryValues(sensorOutput: Seq[Long], sensorHistory: Seq[Seq[Long
                                             .map(sensorOutputValues => sensorOutputValues(1) - sensorOutputValues(0))
                                             .toSeq
 
-    if (historySensorOutput.sum == 0) {
+    if (historySensorOutput.forall(historyValue => historyValue == 0L)) {
        return historySensorOutput +: sensorHistory
     }
 
