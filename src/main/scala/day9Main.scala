@@ -21,11 +21,11 @@ def calcSensorHistoryValues(sensorOutput: Seq[Long], sensorHistory: Seq[Seq[Long
 @tailrec
 def calcExtrapolatedValue(historySensorOutputs: Seq[Seq[Long]]): Long = {
     if (historySensorOutputs.length == 1) {
-        return historySensorOutputs(0).last
+        return historySensorOutputs(0).head
     }
 
-    val extrapolatedValue = historySensorOutputs(0).last + historySensorOutputs(1).last
-    val outputWithExtrapolatedValue = historySensorOutputs(1) :+ extrapolatedValue
+    val extrapolatedValue = historySensorOutputs(1).head -  historySensorOutputs(0).head
+    val outputWithExtrapolatedValue = extrapolatedValue +: historySensorOutputs(1)
     val remainingHistorySensorOutputs = outputWithExtrapolatedValue +: historySensorOutputs.slice(2, historySensorOutputs.length)
     calcExtrapolatedValue(remainingHistorySensorOutputs)
 }
