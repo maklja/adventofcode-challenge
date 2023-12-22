@@ -122,17 +122,18 @@ def pipelinePath(pipeData: Seq[String], map: PipeMap): Seq[(Int, Int)] = {
 }
 
 @tailrec
-def createPipePartsRanges(pipeParts: Seq[(Int, Int)], pipeSections: Map[Int, Seq[Seq[(Int, Int)]]] = Map()): Map[Int, Seq[Seq[(Int, Int)]]] = {
+def createPipePartsRanges(pipeParts: Seq[(Int, Int)], pipeSections: Map[Int, Seq[(Int, Int)]] = Map()): Map[Int, Seq[(Int, Int)]] = {
     if (pipeParts.isEmpty) {
         return pipeSections
     }
 
     val startPipePart = pipeParts.head
-    // TODO create range
-    val pipeSection = startPipePart +: pipeParts.tail.takeWhile(pipePart => pipePart._1 == startPipePart._1)
+    val pipeSection = (startPipePart +: pipeParts.tail.takeWhile(pipePart => pipePart._1 == startPipePart._1))
+        .sortBy( _._2)
+    val pipeSectionRange = (pipeSection.head._2, pipeSection.last._2)
 
 
-    val allPipeSections = pipeSections.getOrElse(startPipePart._1, Seq()) :+ pipeSection
+    val allPipeSections = pipeSections.getOrElse(startPipePart._1, Seq()) :+ pipeSectionRange
     val newPipeSections = pipeSections + (startPipePart._1 -> allPipeSections)
     createPipePartsRanges(pipeParts.slice(pipeSection.length, pipeParts.length), newPipeSections)
 }
