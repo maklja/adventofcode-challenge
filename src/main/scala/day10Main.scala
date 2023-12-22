@@ -122,26 +122,19 @@ def pipelinePath(pipeData: Seq[String], map: PipeMap): Seq[(Int, Int)] = {
 }
 
 @tailrec
-def createPipePartsRanges(pipeParts: Seq[(Int, Int)], pipePartsRange: Seq[(Int, Int)] = Seq()): Seq[(Int, Int)] = {
+def createPipePartsRanges(pipeParts: Seq[(Int, Int)], pipeSections: Map[Int, Seq[Seq[(Int, Int)]]] = Map()): Map[Int, Seq[Seq[(Int, Int)]]] = {
     if (pipeParts.isEmpty) {
-        return pipePartsRange
+        return pipeSections
     }
 
-    val sortedPipeParts = pipeParts.sortBy( _._2 )
-    val indexedPipeParts = sortedPipeParts
-        .foldLeft(Seq[(Int, Int)]())((rangeSeq, pipePart) => {
-            if (rangeSeq.isEmpty) {
-                rangeSeq :+ pipePart
-            } else if (rangeSeq.last._2 + 1 == pipePart._2) {
-                rangeSeq :+ pipePart
-            } else {
-                rangeSeq
-            }
-        })
+    val startPipePart = pipeParts.head
+    // TODO create range
+    val pipeSection = startPipePart +: pipeParts.tail.takeWhile(pipePart => pipePart._1 == startPipePart._1)
 
-    
-    val remainingPipeParts = sortedPipeParts.slice(indexedPipeParts.length, pipeParts.length)
-    createPipePartsRanges(remainingPipeParts, pipePartsRange :+ (indexedPipeParts.head._2, indexedPipeParts.last._2))
+
+    val allPipeSections = pipeSections.getOrElse(startPipePart._1, Seq()) :+ pipeSection
+    val newPipeSections = pipeSections + (startPipePart._1 -> allPipeSections)
+    createPipePartsRanges(pipeParts.slice(pipeSection.length, pipeParts.length), newPipeSections)
 }
 
 def findNestsInRow(pipeParts: Seq[(Int, Int)], rowIdx: Int, map: PipeMap): Seq[(Int, Int)] = {
@@ -165,9 +158,10 @@ def findNestsInRow(pipeParts: Seq[(Int, Int)], rowIdx: Int, map: PipeMap): Seq[(
         })
 }
 
-def findNestsCount(path: Seq[(Int, Int)], map: PipeMap) = 
+def findNestsCount(path: Seq[(Int, Int)], map: PipeMap) = {
+    println(createPipePartsRanges(path))
     path.groupBy( _._1 ).map(pair => findNestsInRow(pair._2, pair._1, map).length).sum
-
+}
 @main def day10Solution: Unit = {
     Using.Manager { use =>
         
