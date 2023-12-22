@@ -7,37 +7,41 @@ val south = 's'
 val west = 'w'
 val east = 'e'
 
-val northSouth = '|'
-val westEast = '-'
-val northEast = 'L'
-val northWest = 'J'
-val southWest = '7'
-val southEast = 'F'
-val groundSymbol = '.'
+val northSouthSymbol = '|'
+val westEastSymbol = '-'
+val northEastSymbol = 'L'
+val northWestSymbol = 'J'
+val southWestSymbol = '7'
+val southEastSymbol = 'F'
+val groundSymbolSymbol = '.'
 val startPositionSymbol = 'S'
 
 val northMap = Map(
-    (northSouth -> north),
-    (southEast -> east),
-    (southWest -> west)
+    (northSouthSymbol -> north),
+    (southEastSymbol -> east),
+    (southWestSymbol -> west),
+    (startPositionSymbol -> startPositionSymbol)
 )
 
 val southMap = Map(
-    (northSouth -> south),
-    (northWest -> west),
-    (northEast -> east)
+    (northSouthSymbol -> south),
+    (northWestSymbol -> west),
+    (northEastSymbol -> east),
+    (startPositionSymbol -> startPositionSymbol)
 )
 
 val westMap = Map(
-    (westEast -> west),
-    (northEast -> north),
-    (southEast -> south)
+    (westEastSymbol -> west),
+    (northEastSymbol -> north),
+    (southEastSymbol -> south),
+    (startPositionSymbol -> startPositionSymbol)
 )
 
 val eastMap = Map(
-    (westEast -> east),
-    (northWest -> north),
-    (southWest -> south)
+    (westEastSymbol -> east),
+    (northWestSymbol -> north),
+    (southWestSymbol -> south),
+    (startPositionSymbol -> startPositionSymbol)
 )
 
 val directionsMap = Map(
@@ -49,7 +53,13 @@ val directionsMap = Map(
 
 case class PipeMap(map: Seq[String]) {
 
-    def getSymbol(p: (Int, Int)): Char = map(p._1)(p._2)
+    def getSymbol(p: (Int, Int)): Char = {
+        if (p._1 < 0 || p._2 < 0) {
+            groundSymbolSymbol
+        } else {
+            map(p._1)(p._2)
+        }
+    }
 
     def positionFromDirection(p: (Int, Int), direction: Char): Option[(Int, Int)] =
         direction match
@@ -67,52 +77,62 @@ case class PipeMap(map: Seq[String]) {
 }
 
 @tailrec
-def searchPipeLine(positions: Seq[(Int, Int)], directions: Seq[Char], map: PipeMap): Option[Seq[(Int, Int)]] = {
+def searchPath(p: (Int, Int), direction: Char, map: PipeMap, path: Seq[(Int, Int)] = Seq()): Option[Seq[(Int, Int)]] = {
+    val symbol = map.getSymbol(p)
+    if (symbol == startPositionSymbol) {
+        return Some(path)
+    }
+
+    val allowedNextSymbols = directionsMap(direction)
+    map.positionFromDirection(p, direction)
+        .map(nextPosition => (nextPosition, map.getSymbol(nextPosition)))
+        .filter(nextPipe => allowedNextSymbols.keySet.contains(nextPipe._2)) match
+            case Some(nextPipe) => {
+                val nextDirection = allowedNextSymbols(nextPipe._2)
+                searchPath(nextPipe._1, nextDirection, map, path :+ p)
+            }
+            case _ => None
+}
+
+@tailrec
+def searchPipes(positions: Seq[(Int, Int)], directions: Seq[Char], map: PipeMap): Option[Seq[(Int, Int)]] = {
     if (directions.isEmpty) {
         return None
     }
 
     val curDirection = directions.head
     val curPosition = positions.last
-    val curSymbol = map.getSymbol(curPosition)
-    val allowedNextSymbols = directionsMap(curDirection)
-    val path = map.positionFromDirection(curPosition, curDirection) match {
-        case Some(nextPosition) => {
-            val nextSymbol = map.getSymbol(nextPosition)
-            if (nextSymbol == startPositionSymbol) {
-                Some(positions :+ nextPosition)
-            } else if (allowedNextSymbols.keySet.contains(nextSymbol))  {
-                val allowedNextDirection = allowedNextSymbols(nextSymbol)
-                searchPipeLine(positions :+ nextPosition, Seq(allowedNextDirection), map)
-            } else {
-                searchPipeLine(positions, directions.tail, map)
-            }
-        }
-        case _ => searchPipeLine(positions, directions.tail, map)
-    }
 
-    if (path.isDefined) {
-        path
-    } else {
-        searchPipeLine(positions, directions.tail, map)
-    }
+    map.positionFromDirection(curPosition, curDirection)
+        .flatMap(nextPosition => searchPath(nextPosition, curDirection, map)) match
+            case Some(path) => Some(curPosition +: path)
+            case _ => searchPipes(positions, directions.tail, map)
 }
 
-def processPipeline(pipeData: Seq[String]) = {
+def processPipeline(pipeData: Seq[String]): Int = {
     val map = new PipeMap(pipeData)
     val startPosition = map.findStartPosition() match {
         case Some(position) => position
         case _ => throw new RuntimeException("Starting position not found")
     }
 
-    val path = searchPipeLine(Seq(startPosition), Seq(north, south, west,  east), map)
-    println(path)
+    val path = searchPipes(Seq(startPosition), Seq(north, south, west,  east), map)
+    path match
+        case None => -1
+        case Some(pathValue) => {
+            val path1 = pathValue.tail.zipWithIndex
+            val path2 = pathValue.tail.reverse.zipWithIndex
+            path1.intersect(path2).map( _._2 ).head + 1
+        }
+    
 }
 
 @main def day10Solution: Unit = {
     Using.Manager { use =>
         
-        val pipeData = use(Source.fromResource("day10/smallInput.txt")).getLines().toSeq
-        processPipeline(pipeData)
+        val pipeData = use(Source.fromResource("day10/input.txt")).getLines().toSeq
+        val farthestPipelinePoint = processPipeline(pipeData)
+
+        println(f"Farthest pipeline point: ${farthestPipelinePoint}")
     }
 }
