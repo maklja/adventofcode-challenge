@@ -13,7 +13,7 @@ val northEastSymbol = 'L'
 val northWestSymbol = 'J'
 val southWestSymbol = '7'
 val southEastSymbol = 'F'
-val groundSymbolSymbol = '.'
+val groundSymbol = '.'
 val startPositionSymbol = 'S'
 
 val northMap = Map(
@@ -53,9 +53,12 @@ val directionsMap = Map(
 
 case class PipeMap(map: Seq[String]) {
 
+    def getRowPositions(rowIdx: Int): Seq[(Int, Int)] = 
+        map(rowIdx).zipWithIndex.map(indexedChar => (rowIdx, indexedChar._2))
+
     def getSymbol(p: (Int, Int)): Char = {
         if (p._1 < 0 || p._2 < 0) {
-            groundSymbolSymbol
+            groundSymbol
         } else {
             map(p._1)(p._2)
         }
@@ -109,30 +112,75 @@ def searchPipes(positions: Seq[(Int, Int)], directions: Seq[Char], map: PipeMap)
             case _ => searchPipes(positions, directions.tail, map)
 }
 
-def processPipeline(pipeData: Seq[String]): Int = {
-    val map = new PipeMap(pipeData)
+def pipelinePath(pipeData: Seq[String], map: PipeMap): Seq[(Int, Int)] = {
     val startPosition = map.findStartPosition() match {
         case Some(position) => position
         case _ => throw new RuntimeException("Starting position not found")
     }
 
-    val path = searchPipes(Seq(startPosition), Seq(north, south, west,  east), map)
-    path match
-        case None => -1
-        case Some(pathValue) => {
-            val path1 = pathValue.tail.zipWithIndex
-            val path2 = pathValue.tail.reverse.zipWithIndex
-            path1.intersect(path2).map( _._2 ).head + 1
-        }
-    
+    searchPipes(Seq(startPosition), Seq(north, south, west,  east), map).getOrElse(Seq())
 }
+
+@tailrec
+def createPipePartsRanges(pipeParts: Seq[(Int, Int)], pipePartsRange: Seq[(Int, Int)] = Seq()): Seq[(Int, Int)] = {
+    if (pipeParts.isEmpty) {
+        return pipePartsRange
+    }
+
+    val sortedPipeParts = pipeParts.sortBy( _._2 )
+    val indexedPipeParts = sortedPipeParts
+        .foldLeft(Seq[(Int, Int)]())((rangeSeq, pipePart) => {
+            if (rangeSeq.isEmpty) {
+                rangeSeq :+ pipePart
+            } else if (rangeSeq.last._2 + 1 == pipePart._2) {
+                rangeSeq :+ pipePart
+            } else {
+                rangeSeq
+            }
+        })
+
+    
+    val remainingPipeParts = sortedPipeParts.slice(indexedPipeParts.length, pipeParts.length)
+    createPipePartsRanges(remainingPipeParts, pipePartsRange :+ (indexedPipeParts.head._2, indexedPipeParts.last._2))
+}
+
+def findNestsInRow(pipeParts: Seq[(Int, Int)], rowIdx: Int, map: PipeMap): Seq[(Int, Int)] = {
+    if (pipeParts.length < 2) {
+        return Seq()
+    }
+
+    val rowFields = map.getRowPositions(rowIdx)
+    rowFields
+        .filter(indexedField => map.getSymbol(indexedField) == groundSymbol)
+        .foldLeft(Seq[(Int, Int)]())((results, field) => {
+            val pipesCount = rowFields
+                                .slice(0, field._2)
+                                .filter(field => pipeParts.contains(field))
+                                .length
+            if (pipesCount % 2 == 0) {
+                results
+            } else {
+                results :+ field
+            }
+        })
+}
+
+def findNestsCount(path: Seq[(Int, Int)], map: PipeMap) = 
+    path.groupBy( _._1 ).map(pair => findNestsInRow(pair._2, pair._1, map).length).sum
 
 @main def day10Solution: Unit = {
     Using.Manager { use =>
         
-        val pipeData = use(Source.fromResource("day10/input.txt")).getLines().toSeq
-        val farthestPipelinePoint = processPipeline(pipeData)
+        val pipeData = use(Source.fromResource("day10/smallInput2.txt")).getLines().toSeq
+        val map = new PipeMap(pipeData)
+        val path = pipelinePath(pipeData, map)
+
+        val path1 = path.tail.zipWithIndex
+        val path2 = path.tail.reverse.zipWithIndex
+        val farthestPipelinePoint = path1.intersect(path2).map( _._2 ).head + 1
 
         println(f"Farthest pipeline point: ${farthestPipelinePoint}")
+
+        println(findNestsCount(path, map))
     }
 }
