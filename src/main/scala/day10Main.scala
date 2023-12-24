@@ -2,7 +2,7 @@ import scala.annotation.tailrec
 import scala.io.Source
 import scala.util.Using
 
-object Day10Challenge {
+object Day10Challenge:
 
   enum WayDirection(value: Int):
     case Up extends WayDirection(1)
@@ -245,7 +245,7 @@ object Day10Challenge {
       pipeParts != 0
     })
 
-  @main def main(): Unit =
+  @main def day10Main(): Unit =
     Using.Manager { use =>
 
       val pipeData =
@@ -261,4 +261,5 @@ object Day10Challenge {
       val nestLocations = findNests(path, map)
       println(f"Nests inside a path: ${nestLocations.length}")
     }
-}
+
+end Day10Challenge
