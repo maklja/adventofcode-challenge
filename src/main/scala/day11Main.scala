@@ -21,7 +21,7 @@ object Day11Challenge:
 
   case class GalaxyField(symbol: GalaxySymbol, position: Position, dx: Int, dy: Int)
 
-  class GalaxyMap(val galaxyData: Seq[String]):
+  class GalaxyMap(val galaxyData: Seq[String], val galaxyValue: Int = 2):
     val galaxyFields = createGalaxyFields().groupBy(_.position.x)
 
     val galaxies =
@@ -54,9 +54,9 @@ object Day11Challenge:
 
       galaxyData.zipWithIndex
         .flatMap(iGalaxyRow => {
-          val rowValue = if (emptyRows.contains(iGalaxyRow._2)) 2 else 1
+          val rowValue = if (emptyRows.contains(iGalaxyRow._2)) galaxyValue else 1
           iGalaxyRow._1.zipWithIndex.map(iGalaxy => {
-            val colValue = if (emptyColumns.contains(iGalaxy._2)) 2 else 1
+            val colValue = if (emptyColumns.contains(iGalaxy._2)) galaxyValue else 1
             val p = Position(iGalaxyRow._2, iGalaxy._2)
 
             GalaxyField(
@@ -79,7 +79,7 @@ object Day11Challenge:
 
       galaxyMap
         .getGalaxyFields(p1.position, p2.position)
-        .foldLeft((0, Option.empty[GalaxyField]))((pathValue, galaxyField) => {
+        .foldLeft((0L, Option.empty[GalaxyField]))((pathValue, galaxyField) => {
           val (value, prevGalaxyField) = pathValue
           if (prevGalaxyField.isEmpty) {
             (value, Some(galaxyField))
@@ -109,6 +109,11 @@ object Day11Challenge:
 
       val pathValuesSum = calculateGalaxyDistance(galaxyMap)
       println(f"Galaxy path values sum: ${pathValuesSum}")
+
+      val largeGalaxyMap = GalaxyMap(galaxyData, 1_000_000)
+
+      val largePathValuesSum = calculateGalaxyDistance(largeGalaxyMap)
+      println(f"Large galaxy path values sum: ${largePathValuesSum}")
     }
 
 end Day11Challenge
