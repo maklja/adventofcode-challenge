@@ -90,13 +90,30 @@ object Day12Challenge:
 
     springRows.map(springRow => (springRow, nextSpringRowRange(springRow.springsStatus)))
 
+  // def splitSpringRowRange(springRowCount: Seq[Int], springRowRange: SpringRowRange) =
+
+  def calcCombinations(springRow: SpringRow, springRowRanges: Seq[SpringRowRange]) =
+
+    if (springRowRanges.length < springRow.springsCount.length) {
+      // TODO split
+    } else {
+      val curSpringRowRange = springRowRanges.head
+      val curSpringRowCount = springRow.springsCount.head
+
+      println(curSpringRowRange.replaceUnknown(curSpringRowCount).get.createCombinations())
+    }
+    ""
 
   @main def day12Main(): Unit =
     Using.Manager { use =>
 
       val springsData =
         use(Source.fromResource("day12/smallInput.txt")).getLines().toSeq
-      println(springsData)
+      val springRows = parseSpringData(springsData)
+      createSpringRowRange(springRows).foreach(x => {
+
+        calcCombinations(x._1, x._2)
+      })
     }
 
 end Day12Challenge
