@@ -8,6 +8,7 @@ object Day12Challenge:
     case Operational extends SpringStatus('.')
     case Malfunction extends SpringStatus('#')
     case Unknown extends SpringStatus('?')
+    case Marked extends SpringStatus('*')
 
     def getValue() = value
 
@@ -16,46 +17,31 @@ object Day12Challenge:
         case '.' => "\\."
         case '#' => "#"
         case '?' => "\\?"
+        case '*' => "*"
 
   case class SpringRow(springsStatus: String, springsCount: Seq[Int])
 
   case class SpringRowRange(springStatusChunk: String, index: Int):
-    val unknownCount = springStatusChunk.count(spring => spring == SpringStatus.Unknown.getValue())
 
-    def replaceUnknown(replaceCount: Int): Option[SpringRowRange] =
-      if (unknownCount < replaceCount) {
+    def countUnknownSpots() = springStatusChunk.count(_ == SpringStatus.Unknown.getValue())
+
+    def countMarkedSpots() = springStatusChunk.count(_ == SpringStatus.Marked.getValue())
+
+    def fillOperationalSpots(): SpringRowRange =
+      SpringRowRange(springStatusChunk.replaceAll("\\*\\?\\*", "\\*\\.\\*"), index)
+
+    def markUnknownSpot(replaceCount: Int): Option[SpringRowRange] =
+      val lastMarkedSpot = springStatusChunk.lastIndexOf(SpringStatus.Marked.getValue())
+      val nextSpotToMark = if (lastMarkedSpot == -1) 0 else lastMarkedSpot + 2
+      val availableSpots = springStatusChunk.slice(nextSpotToMark, springStatusChunk.length())
+      if (availableSpots.length() < replaceCount) {
         return None
       }
 
-      val replacedSpringStatusChunk = Range(0, replaceCount).foldLeft(springStatusChunk)((springStatus, i) => {
-        val unknownSymbol = SpringStatus.Unknown.getValueStr()
-        val malfunctionSymbol = SpringStatus.Malfunction.getValueStr()
-        springStatus.replaceFirst(unknownSymbol, malfunctionSymbol)
-      })
+      val markedSpots =
+        springStatusChunk.patch(nextSpotToMark, SpringStatus.Marked.getValueStr().repeat(replaceCount), replaceCount)
 
-      Some(SpringRowRange(replacedSpringStatusChunk, index))
-
-    def createCombinations(): Seq[String] =
-
-      @tailrec
-      def rotateCombination(
-          springRowStatus: String,
-          rotateNum: Int,
-          results: Seq[String]
-      ): Seq[String] =
-        if (rotateNum <= 0) {
-          return results
-        }
-
-        val rotateSpringRow = springRowStatus.last +: springRowStatus.slice(0, springRowStatus.length - 1)
-        rotateCombination(rotateSpringRow, rotateNum - 1, results :+ rotateSpringRow)
-
-      val unknownSymbol = SpringStatus.Unknown.getValueStr()
-      val operationalSymbol = SpringStatus.Operational.getValueStr()
-      val unknownCount = springStatusChunk.count(spring => spring == SpringStatus.Unknown.getValue())
-
-      val populatedSpringRow = springStatusChunk.replaceAll(unknownSymbol, operationalSymbol)
-      rotateCombination(populatedSpringRow, unknownCount, Seq(populatedSpringRow))
+      Some(SpringRowRange(markedSpots, index))
 
   def parseSpringData(springData: Seq[String]) =
     springData.map(curSpringData => {
@@ -67,6 +53,17 @@ object Day12Challenge:
     })
 
   def createSpringRowRange(springRows: Seq[SpringRow]) =
+
+    def rotateSpringRowRange(springRow: SpringRowRange): SpringRowRange =
+      val firstMalfunctionIdx = springRow.springStatusChunk.indexOf(SpringStatus.Malfunction.getValueStr())
+      if (firstMalfunctionIdx == -1) {
+        return springRow
+      }
+
+      val beginPart = springRow.springStatusChunk.take(firstMalfunctionIdx)
+      val endPart = springRow.springStatusChunk.slice(firstMalfunctionIdx, springRow.springStatusChunk.length)
+
+      SpringRowRange(endPart + beginPart, springRow.index)
 
     @tailrec
     def nextSpringRowRange(
@@ -88,21 +85,63 @@ object Day12Challenge:
         results :+ springRowRange
       )
 
-    springRows.map(springRow => (springRow, nextSpringRowRange(springRow.springsStatus)))
+    springRows.map(springRow => (springRow, nextSpringRowRange(springRow.springsStatus).map(rotateSpringRowRange)))
 
-  // def splitSpringRowRange(springRowCount: Seq[Int], springRowRange: SpringRowRange) =
+  def markSpringRowRanges(springStatusCount: Seq[Int], springRowRanges: Seq[SpringRowRange]): Seq[SpringRowRange] =
 
-  def calcCombinations(springRow: SpringRow, springRowRanges: Seq[SpringRowRange]) =
+    @tailrec
+    def markNextSpringRows(
+        springStatusCount: Seq[Int],
+        springRowRanges: Seq[SpringRowRange],
+        markedSpringRowRanges: Seq[SpringRowRange] = Seq()
+    ): Seq[SpringRowRange] =
+      if (springStatusCount.isEmpty) {
+        return markedSpringRowRanges ++ springRowRanges;
+      }
 
-    if (springRowRanges.length < springRow.springsCount.length) {
-      // TODO split
-    } else {
-      val curSpringRowRange = springRowRanges.head
-      val curSpringRowCount = springRow.springsCount.head
+      if (springRowRanges.isEmpty) {
+        throw new RuntimeException(f"Invalid spring row ranges for sequence ${springStatusCount}")
+      }
 
-      println(curSpringRowRange.replaceUnknown(curSpringRowCount).get.createCombinations())
-    }
-    ""
+      val springRowRange = springRowRanges.head
+      val statusCount = springStatusCount.head
+
+      springRowRange.markUnknownSpot(statusCount) match
+        case None =>
+          markNextSpringRows(springStatusCount, springRowRanges.tail, markedSpringRowRanges :+ springRowRange)
+        case Some(newSpringStatusRange) =>
+          markNextSpringRows(
+            springStatusCount.tail,
+            newSpringStatusRange +: springRowRanges.tail,
+            markedSpringRowRanges
+          )
+
+    markNextSpringRows(springStatusCount, springRowRanges).map(_.fillOperationalSpots())
+
+  def calculateCombinations(markedSpringRowRanges: Seq[SpringRowRange]): Int =
+    // combinations formula C(n, k) = n! / k!(n - k)!
+    // 6 / 2 => 3
+    @tailrec
+    def factorial(n: Int, sum: Int = 1): Int =
+      if (n <= 1) {
+        return sum
+      }
+
+      factorial(n - 1, sum * n)
+
+    markedSpringRowRanges
+      .map(springRange => {
+        val totalSprings = springRange.countMarkedSpots()
+
+        val unknownFieldsCount = springRange.countUnknownSpots()
+        println(f"${totalSprings} = ${unknownFieldsCount}")
+        if (unknownFieldsCount == 0) {
+          0
+        } else {
+          factorial(totalSprings) / factorial(unknownFieldsCount) * factorial(totalSprings - unknownFieldsCount)
+        }
+      })
+      .sum
 
   @main def day12Main(): Unit =
     Using.Manager { use =>
@@ -110,10 +149,17 @@ object Day12Challenge:
       val springsData =
         use(Source.fromResource("day12/smallInput.txt")).getLines().toSeq
       val springRows = parseSpringData(springsData)
-      createSpringRowRange(springRows).foreach(x => {
 
-        calcCombinations(x._1, x._2)
+      val markedSpringRowRanges = createSpringRowRange(springRows).map((springRowRangeTuple) => {
+        val (springRow, springROwRanges) = springRowRangeTuple
+        markSpringRowRanges(springRow.springsCount, springROwRanges)
       })
+
+      println(markedSpringRowRanges.map(calculateCombinations))
     }
+
+    // 4, 1
+    // 24
+    // 1 * 3 * 2 => 6 4
 
 end Day12Challenge
