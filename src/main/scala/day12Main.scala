@@ -14,14 +14,19 @@ object Day12Challenge:
 
     def getValueStr() =
       value match
-        case '.' => "\\."
+        case '.' => """."""
         case '#' => "#"
-        case '?' => "\\?"
+        case '?' => """?"""
         case '*' => "*"
 
   case class SpringRow(springsStatus: String, springsCount: Seq[Int])
 
-  case class SpringRowRange(springStatusChunk: String, index: Int, private val markedSpot: Int = 0):
+  case class SpringRowRange(
+      springStatusChunk: String,
+      index: Int,
+      private val markedSpot: Int = 0,
+      private val markedTimes: Int = 0
+  ):
 
     def countUnknownSpots() = springStatusChunk.count(_ == SpringStatus.Unknown.getValue())
 
@@ -30,21 +35,22 @@ object Day12Challenge:
     def fillOperationalSpots(): SpringRowRange =
       val newSpringStatus = Range(0, springStatusChunk.length()).foldLeft(springStatusChunk)((springStatus, idx) => {
         val curStatus = springStatus(idx)
-        val prevStatus = springStatus.lift(idx - 1)
-        val nexStatus = springStatus.lift(idx + 1)
+        val prevStatus = springStatus.lift(idx - 1).getOrElse(SpringStatus.Unknown.getValue())
+        val nexStatus = springStatus.lift(idx + 1).getOrElse(SpringStatus.Unknown.getValue())
+        val malfunctionLeftOrRight = prevStatus == SpringStatus.Malfunction
+          .getValue() || nexStatus == SpringStatus.Malfunction.getValue()
+
         if (
-          prevStatus.isEmpty || nexStatus.isEmpty || prevStatus.get == SpringStatus.Unknown
-            .getValue() || nexStatus.get == SpringStatus.Unknown.getValue() || curStatus != SpringStatus.Unknown
+          !malfunctionLeftOrRight || curStatus != SpringStatus.Unknown
             .getValue()
         ) {
           springStatus
         } else {
-
           springStatus.patch(idx, SpringStatus.Operational.getValueStr(), 1)
         }
       })
 
-      SpringRowRange(newSpringStatus, index)
+      SpringRowRange(newSpringStatus, index, markedSpot, markedTimes)
 
     def markUnknownSpot(replaceCount: Int): Option[SpringRowRange] =
       val availableSpots = springStatusChunk.slice(markedSpot, springStatusChunk.length())
@@ -63,7 +69,7 @@ object Day12Challenge:
             }
           })
 
-      Some(SpringRowRange(markedSpots, index, markedSpot + markRange.length + 1))
+      Some(SpringRowRange(markedSpots, index, markedSpot + markRange.length + 1, markedTimes + 1))
 
   def parseSpringData(springData: Seq[String]) =
     springData.map(curSpringData => {
@@ -142,7 +148,6 @@ object Day12Challenge:
 
   def calculateCombinations(markedSpringRowRanges: Seq[SpringRowRange]): Int =
     // combinations formula C(n, k) = n! / k!(n - k)!
-    // 6 / 2 => 3
     @tailrec
     def factorial(n: Int, sum: Int = 1): Int =
       if (n <= 1) {
@@ -151,19 +156,23 @@ object Day12Challenge:
 
       factorial(n - 1, sum * n)
 
-    markedSpringRowRanges
+    val splitMarkedRanges = markedSpringRowRanges
       .map(springRange => {
-        val totalSprings = springRange.countMarkedSpots()
-
-        val unknownFieldsCount = springRange.countUnknownSpots()
-        println(f"${totalSprings} = ${unknownFieldsCount}")
-        if (unknownFieldsCount == 0) {
-          0
-        } else {
-          factorial(totalSprings) / factorial(unknownFieldsCount) * factorial(totalSprings - unknownFieldsCount)
-        }
+        springRange.springStatusChunk
+          .foldLeft(Seq[String]())((spots, springStatus) => {
+            if (springStatus == SpringStatus.Operational.getValue()) {
+              spots :+ ""
+            } else {
+              var curSpringStatuses = spots.lastOption.getOrElse("") + springStatus
+              curSpringStatuses = if (curSpringStatuses.takeRight(2) == "#*") "#" else curSpringStatuses
+              spots.slice(0, spots.length - 1) :+ curSpringStatuses
+            }
+          })
       })
-      .sum
+
+    println(splitMarkedRanges)
+
+    0
 
   @main def day12Main(): Unit =
     Using.Manager { use =>
@@ -178,14 +187,10 @@ object Day12Challenge:
         })
 
         println(markedSpringRowRanges)
+        // println(markedSpringRowRanges.map(calculateCombinations))
       } catch {
         case e: RuntimeException => println(e.printStackTrace())
       }
-      // println(markedSpringRowRanges.map(calculateCombinations))
     }
-
-    // 4, 1
-    // 24
-    // 1 * 3 * 2 => 6 4
 
 end Day12Challenge
