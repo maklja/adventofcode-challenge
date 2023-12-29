@@ -187,7 +187,8 @@ object Day12Challenge:
         })
 
         println(markedSpringRowRanges)
-        // println(markedSpringRowRanges.map(calculateCombinations))
+        println(markedS
+        pringRowRanges.map(calculateCombinations))
       } catch {
         case e: RuntimeException => println(e.printStackTrace())
       }
