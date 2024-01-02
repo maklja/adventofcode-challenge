@@ -21,55 +21,12 @@ object Day12Challenge:
 
   case class SpringRow(springsStatus: String, springsCount: Seq[Int])
 
+  case class SpringRange(count: Int, range: Range)
+
   case class SpringRowRange(
       springStatusChunk: String,
-      index: Int,
-      private val markedSpot: Int = 0,
-      private val markedTimes: Int = 0
-  ):
-
-    def countUnknownSpots() = springStatusChunk.count(_ == SpringStatus.Unknown.getValue())
-
-    def countMarkedSpots() = springStatusChunk.count(_ == SpringStatus.Marked.getValue())
-
-    def fillOperationalSpots(): SpringRowRange =
-      val newSpringStatus = Range(0, springStatusChunk.length()).foldLeft(springStatusChunk)((springStatus, idx) => {
-        val curStatus = springStatus(idx)
-        val prevStatus = springStatus.lift(idx - 1).getOrElse(SpringStatus.Unknown.getValue())
-        val nexStatus = springStatus.lift(idx + 1).getOrElse(SpringStatus.Unknown.getValue())
-        val malfunctionLeftOrRight = prevStatus == SpringStatus.Malfunction
-          .getValue() || nexStatus == SpringStatus.Malfunction.getValue()
-
-        if (
-          !malfunctionLeftOrRight || curStatus != SpringStatus.Unknown
-            .getValue()
-        ) {
-          springStatus
-        } else {
-          springStatus.patch(idx, SpringStatus.Operational.getValueStr(), 1)
-        }
-      })
-
-      SpringRowRange(newSpringStatus, index, markedSpot, markedTimes)
-
-    def markUnknownSpot(replaceCount: Int): Option[SpringRowRange] =
-      val availableSpots = springStatusChunk.slice(markedSpot, springStatusChunk.length())
-      if (availableSpots.length() < replaceCount) {
-        return None
-      }
-
-      val markRange = Range(markedSpot, Math.min(springStatusChunk.length(), markedSpot + replaceCount))
-      val markedSpots =
-        markRange
-          .foldLeft(springStatusChunk)((springStatus, i) => {
-            if (springStatus(i) == SpringStatus.Malfunction.getValue()) {
-              springStatus
-            } else {
-              springStatus.patch(i, SpringStatus.Marked.getValueStr(), 1)
-            }
-          })
-
-      Some(SpringRowRange(markedSpots, index, markedSpot + markRange.length + 1, markedTimes + 1))
+      ranges: Seq[SpringRange] = Seq()
+  )
 
   def parseSpringData(springData: Seq[String]) =
     springData.map(curSpringData => {
@@ -80,23 +37,11 @@ object Day12Challenge:
       SpringRow(springs, count)
     })
 
-  def createSpringRowRange(springRows: Seq[SpringRow]) =
-
-    def rotateSpringRowRange(springRow: SpringRowRange): SpringRowRange =
-      val firstMalfunctionIdx = springRow.springStatusChunk.indexOf(SpringStatus.Malfunction.getValueStr())
-      if (firstMalfunctionIdx == -1) {
-        return springRow
-      }
-
-      val beginPart = springRow.springStatusChunk.take(firstMalfunctionIdx)
-      val endPart = springRow.springStatusChunk.slice(firstMalfunctionIdx, springRow.springStatusChunk.length)
-
-      SpringRowRange(endPart + beginPart, springRow.index)
+  def splitSpringRowIntoRanges(springRows: Seq[SpringRow]) =
 
     @tailrec
-    def nextSpringRowRange(
+    def splitSpringRow(
         springsStatus: String,
-        springIndex: Int = 0,
         results: Seq[SpringRowRange] = Seq()
     ): Seq[SpringRowRange] =
       val remainingSpringsStatus = springsStatus.dropWhile(spring => spring == SpringStatus.Operational.getValue())
@@ -105,46 +50,105 @@ object Day12Challenge:
       }
 
       val springRange = remainingSpringsStatus.takeWhile(spring => spring != SpringStatus.Operational.getValue())
-
-      val springRowRange = SpringRowRange(springRange, springIndex)
-      nextSpringRowRange(
+      val range = SpringRowRange(springRange)
+      splitSpringRow(
         remainingSpringsStatus.slice(springRange.length(), remainingSpringsStatus.length()),
-        springIndex + 1,
-        results :+ springRowRange
+        results :+ range
       )
 
-    springRows.map(springRow => (springRow, nextSpringRowRange(springRow.springsStatus).map(rotateSpringRowRange)))
+    springRows.map(springRow => (springRow, splitSpringRow(springRow.springsStatus)))
+
+  @tailrec
+  def markSpringStatusCount(
+      springStatusCount: Int,
+      range: SpringRowRange,
+      markPosition: Int = 0
+  ): Option[(Int, SpringRowRange)] =
+    val availableSpots = range.springStatusChunk.slice(markPosition, range.springStatusChunk.length())
+    if (availableSpots.length() < springStatusCount) {
+      return None
+    }
+
+    val markRange = Range(markPosition, Math.min(range.springStatusChunk.length(), markPosition + springStatusCount))
+    val markedSpots =
+      markRange
+        .foldLeft(range.springStatusChunk)((springStatus, i) => {
+          if (springStatus(i) == SpringStatus.Malfunction.getValue()) {
+            springStatus
+          } else {
+            springStatus.patch(i, SpringStatus.Marked.getValueStr(), 1)
+          }
+        })
+
+    val countCheck = markedSpots
+      .slice(markRange.head, markRange.head + markRange.length + 1)
+      .count(status => status != SpringStatus.Unknown.getValue())
+    if (countCheck == springStatusCount) {
+      val maxRange =
+        markedSpots.zipWithIndex
+          .slice(markRange.head, range.springStatusChunk.length())
+          .find(_._1 == SpringStatus.Malfunction.getValue())
+          .map(_._2 + springStatusCount)
+          .getOrElse(Int.MaxValue)
+
+      val nextSpringRange =
+        SpringRange(springStatusCount, Range(markRange.head, Math.min(range.springStatusChunk.length(), maxRange)))
+      // TODO fixed params, maximum range of the spring is first malfunction + count,it can't move beyond that
+      // also first one can't be beyond last # minus count
+      val springRowRanges = range.ranges.reverse
+        .foldLeft(Seq(nextSpringRange))((newRanges, curRange) => {
+          println(f"xx${newRanges.last.range.last - curRange.count + 1}")
+          // TODO bug here
+          val updatedMaxRange = Math.min(curRange.range.end, newRanges.last.range.last - curRange.count + 1)
+          val updatedCurRange = Range(curRange.range(0), updatedMaxRange)
+          println(updatedCurRange)
+          newRanges :+ curRange.copy(range = updatedCurRange)
+        })
+        .reverse
+
+      Some(
+        markPosition + markRange.length + 1,
+        SpringRowRange(
+          markedSpots,
+          springRowRanges
+        )
+      )
+    } else {
+      markSpringStatusCount(springStatusCount, range, markPosition + 1)
+    }
 
   def markSpringRowRanges(springStatusCount: Seq[Int], springRowRanges: Seq[SpringRowRange]): Seq[SpringRowRange] =
 
     @tailrec
     def markNextSpringRows(
         springStatusCount: Seq[Int],
-        springRowRanges: Seq[SpringRowRange],
+        ranges: Seq[SpringRowRange],
+        markPosition: Int = 0,
         markedSpringRowRanges: Seq[SpringRowRange] = Seq()
     ): Seq[SpringRowRange] =
       if (springStatusCount.isEmpty) {
-        return markedSpringRowRanges ++ springRowRanges;
+        return markedSpringRowRanges ++ ranges
       }
 
-      if (springRowRanges.isEmpty) {
+      if (ranges.isEmpty) {
         throw new RuntimeException(f"Invalid spring row ranges for sequence ${springStatusCount}")
       }
 
-      val springRowRange = springRowRanges.head
+      val springRowRange = ranges.head
       val statusCount = springStatusCount.head
 
-      springRowRange.markUnknownSpot(statusCount) match
+      markSpringStatusCount(statusCount, springRowRange, markPosition) match
         case None =>
-          markNextSpringRows(springStatusCount, springRowRanges.tail, markedSpringRowRanges :+ springRowRange)
-        case Some(newSpringStatusRange) =>
+          markNextSpringRows(springStatusCount, ranges.tail, 0, markedSpringRowRanges :+ springRowRange)
+        case Some((nextMarkPosition, newSpringStatusRange)) =>
           markNextSpringRows(
             springStatusCount.tail,
-            newSpringStatusRange +: springRowRanges.tail,
+            newSpringStatusRange +: ranges.tail,
+            nextMarkPosition,
             markedSpringRowRanges
           )
 
-    markNextSpringRows(springStatusCount, springRowRanges).map(_.fillOperationalSpots())
+    markNextSpringRows(springStatusCount, springRowRanges)
 
   def calculateCombinations(markedSpringRowRanges: Seq[SpringRowRange]): Int =
     // combinations formula C(n, k) = n! / k!(n - k)!
@@ -181,17 +185,48 @@ object Day12Challenge:
           use(Source.fromResource("day12/smallInput.txt")).getLines().toSeq
         val springRows = parseSpringData(springsData)
 
-        val markedSpringRowRanges = createSpringRowRange(springRows).map((springRowRangeTuple) => {
-          val (springRow, springROwRanges) = springRowRangeTuple
-          markSpringRowRanges(springRow.springsCount, springROwRanges)
-        })
+        val markedSpringRowRanges = splitSpringRowIntoRanges(springRows)
+          .map((springRowRangeTuple) => {
+            val (springRow, springROwRanges) = springRowRangeTuple
+            markSpringRowRanges(springRow.springsCount, springROwRanges)
+          })
+          .foreach(x => println(x))
 
-        println(markedSpringRowRanges)
-        println(markedS
-        pringRowRanges.map(calculateCombinations))
+        // pringRowRanges.map(calculateCombinations))
       } catch {
-        case e: RuntimeException => println(e.printStackTrace())
+        case e: RuntimeException => e.printStackTrace()
       }
     }
+
+  // *?*??
+  // [0,2],[2,4]
+  // 0 + 1 not in [2,4] => 3
+  // 1 + 1 is in [2,4] => new range [3,4] => 2
+  // 2 + 1 is in [2,4] => new range [4,4] => 1
+
+  // *?*???
+  // [0,3], [2,5]
+  // 0 + 1 not [2,5] => 4
+  // 1 + 1 is [2,5] => new range [3,5] => 3
+  // 2 + 1 is [2,5] => new range [4,5] => 2
+  // 3 + 1 is [2,5] => new range [5,5] => 1
+
+  // *??*??*??
+  // [0, 4], [3,6], [6, 8]
+  // 0 + 1 not in [3,6] => 4 + 3 = 7
+  // 1 + 1 not in [3,6] => 4 + 3 = 7
+  // 2 + 1 is [3,6] => new range [4,6] => 3 + 3 = 6
+  // 3 + 1 is [3,6] => new range [5,6] => 2 + 3 = 5
+  // 4 + 1 is [3,6] => new range [6,6] is in range [6,8] => [6,6][7,8] => 1 + 2 = 3
+
+  // *?*#?? (1, 2)
+  // [0,1], [2,4] => 1, 2
+  // 0 + 1 not in [2,4] =>  2
+  // 1 + 1 in [2,4] => new range [3,4] => 1
+
+  // *?*##? (1, 3)
+  // [0,1], [2,5] => 2, 2
+  // 0 + 1 not in [2,5] => 2
+  // 1 + 1 in [2,5] => new range [3,5] => 1
 
 end Day12Challenge
