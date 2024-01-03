@@ -28,6 +28,30 @@ object Day12Challenge:
       ranges: Seq[SpringRange] = Seq()
   )
 
+  // @tailrec
+  // private def rangeCombinations(springsStatus: String, springRange: SpringRange, combination: Int = 1): Int =
+  //   val rangeSlice = springsStatus
+  //     .slice(springRange.range.start, springRange.range.end)
+  //   if (!rangeSlice.exists(springStatus => springStatus == SpringStatus.Unknown.getValue())) {
+  //     combination
+  //   } else {
+  //     val MalfunctionIdx = springsStatus.indexOf(SpringStatus.Malfunction.getValueStr())
+
+  //     rangeCombinations(nextSpringStatus, springRange, combination + 1)
+  //   }
+
+  // def rangesCombinations() =
+  //   ranges
+  //     .filter(springRange =>
+  //       springStatusChunk
+  //         .slice(springRange.range.start, springRange.range.end)
+  //         .exists(springStatus => springStatus == SpringStatus.Unknown.getValue())
+  //     )
+  //     .map(springRange => {
+  //       println(f"${springStatusChunk} = ${springRange.range}  =>${springRange.range.length - springRange.count + 1}")
+  //       springRange.range.length - springRange.count + 1
+  //     })
+
   def parseSpringData(springData: Seq[String]) =
     springData.map(curSpringData => {
       val springsAndCounts = curSpringData.split(" ")
@@ -86,22 +110,17 @@ object Day12Challenge:
     if (countCheck == springStatusCount) {
       val maxRange =
         markedSpots.zipWithIndex
-          .slice(markRange.head, range.springStatusChunk.length())
+          .slice(markRange.head, markRange.head + markRange.length)
           .find(_._1 == SpringStatus.Malfunction.getValue())
           .map(_._2 + springStatusCount)
-          .getOrElse(Int.MaxValue)
+          .getOrElse(range.springStatusChunk.length())
 
       val nextSpringRange =
-        SpringRange(springStatusCount, Range(markRange.head, Math.min(range.springStatusChunk.length(), maxRange)))
-      // TODO fixed params, maximum range of the spring is first malfunction + count,it can't move beyond that
-      // also first one can't be beyond last # minus count
+        SpringRange(springStatusCount, Range(markRange.head, maxRange))
       val springRowRanges = range.ranges.reverse
         .foldLeft(Seq(nextSpringRange))((newRanges, curRange) => {
-          println(f"xx${newRanges.last.range.last - curRange.count + 1}")
-          // TODO bug here
-          val updatedMaxRange = Math.min(curRange.range.end, newRanges.last.range.last - curRange.count + 1)
+          val updatedMaxRange = Math.min(curRange.range.end, newRanges.last.range.last - 1)
           val updatedCurRange = Range(curRange.range(0), updatedMaxRange)
-          println(updatedCurRange)
           newRanges :+ curRange.copy(range = updatedCurRange)
         })
         .reverse
@@ -150,34 +169,6 @@ object Day12Challenge:
 
     markNextSpringRows(springStatusCount, springRowRanges)
 
-  def calculateCombinations(markedSpringRowRanges: Seq[SpringRowRange]): Int =
-    // combinations formula C(n, k) = n! / k!(n - k)!
-    @tailrec
-    def factorial(n: Int, sum: Int = 1): Int =
-      if (n <= 1) {
-        return sum
-      }
-
-      factorial(n - 1, sum * n)
-
-    val splitMarkedRanges = markedSpringRowRanges
-      .map(springRange => {
-        springRange.springStatusChunk
-          .foldLeft(Seq[String]())((spots, springStatus) => {
-            if (springStatus == SpringStatus.Operational.getValue()) {
-              spots :+ ""
-            } else {
-              var curSpringStatuses = spots.lastOption.getOrElse("") + springStatus
-              curSpringStatuses = if (curSpringStatuses.takeRight(2) == "#*") "#" else curSpringStatuses
-              spots.slice(0, spots.length - 1) :+ curSpringStatuses
-            }
-          })
-      })
-
-    println(splitMarkedRanges)
-
-    0
-
   @main def day12Main(): Unit =
     Using.Manager { use =>
       try {
@@ -190,7 +181,7 @@ object Day12Challenge:
             val (springRow, springROwRanges) = springRowRangeTuple
             markSpringRowRanges(springRow.springsCount, springROwRanges)
           })
-          .foreach(x => println(x))
+          .foreach(x => println(x.map(_.rangesCombinations())))
 
         // pringRowRanges.map(calculateCombinations))
       } catch {
@@ -228,5 +219,4 @@ object Day12Challenge:
   // [0,1], [2,5] => 2, 2
   // 0 + 1 not in [2,5] => 2
   // 1 + 1 in [2,5] => new range [3,5] => 1
-
 end Day12Challenge
