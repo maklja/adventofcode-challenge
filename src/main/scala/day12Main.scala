@@ -169,6 +169,31 @@ object Day12Challenge:
 
     markNextSpringRows(springStatusCount, springRowRanges)
 
+  def combinations(springRanges: Seq[SpringRange]) =
+
+    def combinationHelper(range: Range, nextRanges: Seq[SpringRange], combinations: Seq[Int] = Seq()): Seq[Int] =
+      if (nextRanges.isEmpty) {
+        return Seq(range.length)
+      }
+      val nextRange = nextRanges.head
+      if (nextRange.range.contains(range)) {
+        val xRange = Range(range.start, nextRange.range.end)
+        xRange.flatMap(curSpringIdx =>
+          combinationHelper(Range(curSpringIdx + nextRange.count, nextRange.range.end), nextRanges.tail, combinations)
+        )
+      } else {
+        nextRange.range.flatMap(curSpringIdx =>
+          combinationHelper(Range(curSpringIdx + nextRange.count, nextRange.range.end), nextRanges.tail, combinations)
+        )
+      }
+
+    val startRange = springRanges.filter(r => r.range.length > r.count)
+    if (startRange.isEmpty) {
+      Seq()
+    } else {
+      combinationHelper(startRange.head.range, springRanges.tail)
+    }
+
   @main def day12Main(): Unit =
     Using.Manager { use =>
       try {
@@ -180,8 +205,9 @@ object Day12Challenge:
           .map((springRowRangeTuple) => {
             val (springRow, springROwRanges) = springRowRangeTuple
             markSpringRowRanges(springRow.springsCount, springROwRanges)
+              .filter(springRanges => springRanges.springStatusChunk.exists(_ == SpringStatus.Unknown.getValue()))
           })
-          .foreach(x => println(x.map(_.rangesCombinations())))
+          .foreach(x => println(x.map(xx => combinations(xx.ranges))))
 
         // pringRowRanges.map(calculateCombinations))
       } catch {
