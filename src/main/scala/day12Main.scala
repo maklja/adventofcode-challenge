@@ -28,30 +28,6 @@ object Day12Challenge:
       ranges: Seq[SpringRange] = Seq()
   )
 
-  // @tailrec
-  // private def rangeCombinations(springsStatus: String, springRange: SpringRange, combination: Int = 1): Int =
-  //   val rangeSlice = springsStatus
-  //     .slice(springRange.range.start, springRange.range.end)
-  //   if (!rangeSlice.exists(springStatus => springStatus == SpringStatus.Unknown.getValue())) {
-  //     combination
-  //   } else {
-  //     val MalfunctionIdx = springsStatus.indexOf(SpringStatus.Malfunction.getValueStr())
-
-  //     rangeCombinations(nextSpringStatus, springRange, combination + 1)
-  //   }
-
-  // def rangesCombinations() =
-  //   ranges
-  //     .filter(springRange =>
-  //       springStatusChunk
-  //         .slice(springRange.range.start, springRange.range.end)
-  //         .exists(springStatus => springStatus == SpringStatus.Unknown.getValue())
-  //     )
-  //     .map(springRange => {
-  //       println(f"${springStatusChunk} = ${springRange.range}  =>${springRange.range.length - springRange.count + 1}")
-  //       springRange.range.length - springRange.count + 1
-  //     })
-
   def parseSpringData(springData: Seq[String]) =
     springData.map(curSpringData => {
       val springsAndCounts = curSpringData.split(" ")
@@ -114,7 +90,6 @@ object Day12Challenge:
           .find(_._1 == SpringStatus.Malfunction.getValue())
           .map(_._2 + springStatusCount)
           .getOrElse(range.springStatusChunk.length())
-
       val nextSpringRange =
         SpringRange(springStatusCount, Range(markRange.head, maxRange))
       val springRowRanges = range.ranges.reverse
@@ -169,30 +144,116 @@ object Day12Challenge:
 
     markNextSpringRows(springStatusCount, springRowRanges)
 
-  def combinations(springRanges: Seq[SpringRange]) =
+  def combinations(springStatusChunk: String) =
+    val shiftToRightCount = springStatusChunk
 
-    def combinationHelper(range: Range, nextRanges: Seq[SpringRange], combinations: Seq[Int] = Seq()): Seq[Int] =
-      if (nextRanges.isEmpty) {
-        return Seq(range.length)
-      }
-      val nextRange = nextRanges.head
-      if (nextRange.range.contains(range)) {
-        val xRange = Range(range.start, nextRange.range.end)
-        xRange.flatMap(curSpringIdx =>
-          combinationHelper(Range(curSpringIdx + nextRange.count, nextRange.range.end), nextRanges.tail, combinations)
-        )
-      } else {
-        nextRange.range.flatMap(curSpringIdx =>
-          combinationHelper(Range(curSpringIdx + nextRange.count, nextRange.range.end), nextRanges.tail, combinations)
-        )
-      }
+    // *#??* => #*?*
+    @tailrec
+    def combinationsHelper(springStatus: Option[Char], restLeftStatus: String, result: String = ""): String =
+      springStatus match
+        case Some(status) =>
+          if (status == SpringStatus.Malfunction.getValue()) {
+            return combinationsHelper(restLeftStatus.headOption, restLeftStatus.tail, result :+ status)
+          }
 
-    val startRange = springRanges.filter(r => r.range.length > r.count)
-    if (startRange.isEmpty) {
-      Seq()
+          val nextStatusOption = restLeftStatus.headOption
+          nextStatusOption match {
+            case Some(nextStatus)
+                if nextStatus == SpringStatus.Malfunction.getValue() || nextStatus == SpringStatus.Marked.getValue() =>
+              combinationsHelper(springStatus, restLeftStatus.tail, result :+ nextStatus)
+            case Some(nextStatus) if nextStatus == SpringStatus.Unknown.getValue() =>
+              combinationsHelper(springStatus, restLeftStatus.tail, result :+ nextStatus)
+            case _ =>
+              combinationsHelper(restLeftStatus.tail.headOption, restLeftStatus.tail.drop(1), result :+ status)
+            // val skipStatus =
+            //   restLeftStatus.tail.takeWhile(springStatus => springStatus != SpringStatus.Marked.getValue())
+            // val newResult = (result :+ status) + skipStatus
+            // val remainingStatus = restLeftStatus.tail.slice(skipStatus.length(), restLeftStatus.tail.length())
+            // combinationsHelper(remainingStatus.headOption, remainingStatus.tail, newResult)
+          }
+        // if (nextStatus == SpringStatus.Marked.getValue()) {
+        //   combinationsHelper(springStatus, restLeftStatus.tail, result :+ nextStatus)
+        // }
+        case _ =>
+          result
+
+    if (springStatusChunk.contains(SpringStatus.Unknown.getValueStr())) {
+      combinationsHelper(springStatusChunk.headOption, springStatusChunk.tail)
     } else {
-      combinationHelper(startRange.head.range, springRanges.tail)
+      springStatusChunk
     }
+
+  def xx(springRowRange: SpringRowRange) =
+    val springRanges = springRowRange.ranges
+    val springStatusRowChunk = springRowRange.springStatusChunk
+    val chunks = springRanges.reverse.map(springRange =>
+      springStatusRowChunk.slice(springRange.range.start, springRange.range.end)
+    )
+
+    val tt = chunks.foreach(t => {
+      println(f"--->${t}")
+      println(combinations(t))
+    })
+
+  @tailrec
+  def findMalfunctions(springRowStatus: String, ranges: Seq[Range] = Seq()): Seq[Range] = {
+    val malfunctionIdx = springRowStatus.indexOf(SpringStatus.Malfunction.getValueStr())
+    if (malfunctionIdx == -1) {
+      ranges
+    } else {
+      val malfunctionCount = springRowStatus.drop(malfunctionIdx).count(_ == SpringStatus.Malfunction.getValue())
+      val malfunctionRange = Range(malfunctionIdx, malfunctionIdx + malfunctionCount)
+      findMalfunctions(
+        springRowStatus.slice(malfunctionRange.end + 1, springRowStatus.length()),
+        ranges :+ malfunctionRange
+      )
+    }
+  }
+// here
+  def malfunctionRanges(springRowStatus: String): Seq[Range] = {
+
+    @tailrec
+    def malfunctionRangesHelper(
+        springRowStatus: Seq[(Char, Int)],
+        malfunctionChunk: Option[(Int, String)] = Option.empty,
+        result: Seq[Range] = Seq()
+    ): Seq[Range] = {
+      if (springRowStatus.isEmpty) {
+        return malfunctionChunk
+          .map(chunk => {
+            val malfunctionRange = Range(chunk._1, chunk._1 + chunk._2.length())
+            result :+ malfunctionRange
+          })
+          .getOrElse(
+            result
+          )
+      }
+
+      val (springStatus, springIdx) = springRowStatus.head
+      if (springStatus == SpringStatus.Malfunction.getValue()) {
+        val newMalfunctionChunk = malfunctionChunk
+          .map(chunk => (chunk._1, chunk._2 :+ springStatus))
+          .getOrElse(
+            (springIdx, springStatus.toString())
+          )
+        malfunctionRangesHelper(springRowStatus.tail, Some(newMalfunctionChunk), result)
+      } else {
+        malfunctionChunk match {
+          case Some(malfunctionChunk) =>
+            val malfunctionRange = Range(malfunctionChunk._1, malfunctionChunk._1 + malfunctionChunk._2.length())
+            malfunctionRangesHelper(springRowStatus.tail, None, result :+ malfunctionRange)
+          case _ =>
+            malfunctionRangesHelper(springRowStatus.tail, None, result)
+        }
+      }
+    }
+
+    malfunctionRangesHelper(springRowStatus.zipWithIndex)
+  }
+
+  def bestMatch(springRow: SpringRow) = {
+    println(malfunctionRanges(springRow.springsStatus))
+  }
 
   @main def day12Main(): Unit =
     Using.Manager { use =>
@@ -200,14 +261,16 @@ object Day12Challenge:
         val springsData =
           use(Source.fromResource("day12/smallInput.txt")).getLines().toSeq
         val springRows = parseSpringData(springsData)
-
-        val markedSpringRowRanges = splitSpringRowIntoRanges(springRows)
-          .map((springRowRangeTuple) => {
-            val (springRow, springROwRanges) = springRowRangeTuple
-            markSpringRowRanges(springRow.springsCount, springROwRanges)
-              .filter(springRanges => springRanges.springStatusChunk.exists(_ == SpringStatus.Unknown.getValue()))
-          })
-          .foreach(x => println(x.map(xx => combinations(xx.ranges))))
+        springRows.foreach(bestMatch(_))
+        // val markedSpringRowRanges = splitSpringRowIntoRanges(springRows)
+        //   .map((springRowRangeTuple) => {
+        //     val (springRow, springROwRanges) = springRowRangeTuple
+        //     markSpringRowRanges(springRow.springsCount, springROwRanges)
+        //   })
+        //   .foreach(x => {
+        //     println(x)
+        //     x.map(xx)
+        //   })
 
         // pringRowRanges.map(calculateCombinations))
       } catch {
