@@ -19,7 +19,7 @@ object Day12Challenge:
         case '?' => """?"""
         case '*' => "*"
 
-  case class SpringRow(springsStatus: String, springsCount: Seq[Int])
+  case class SpringRow(status: String, groups: Seq[Int])
 
   case class SpringRange(count: Int, range: Range)
 
@@ -37,32 +37,17 @@ object Day12Challenge:
       SpringRow(springs, count)
     })
 
-  @tailrec
-  def findMalfunctions(springRowStatus: String, ranges: Seq[Range] = Seq()): Seq[Range] = {
-    val malfunctionIdx = springRowStatus.indexOf(SpringStatus.Malfunction.getValueStr())
-    if (malfunctionIdx == -1) {
-      ranges
-    } else {
-      val malfunctionCount = springRowStatus.drop(malfunctionIdx).count(_ == SpringStatus.Malfunction.getValue())
-      val malfunctionRange = Range(malfunctionIdx, malfunctionIdx + malfunctionCount)
-      findMalfunctions(
-        springRowStatus.slice(malfunctionRange.end + 1, springRowStatus.length()),
-        ranges :+ malfunctionRange
-      )
-    }
-  }
-
   type RangeMatch = (Int, Option[Range])
 
-  def findMalfunctionRanges(springRowStatus: String): Seq[Range] = {
+  def findMalfunctionRanges(status: String): Seq[Range] = {
 
     @tailrec
     def malfunctionRangesHelper(
-        springRowStatus: Seq[(Char, Int)],
+        status: Seq[(Char, Int)],
         malfunctionChunk: Option[(Int, String)] = Option.empty,
         result: Seq[Range] = Seq()
     ): Seq[Range] = {
-      if (springRowStatus.isEmpty) {
+      if (status.isEmpty) {
         return malfunctionChunk
           .map(chunk => {
             val malfunctionRange = Range(chunk._1, chunk._1 + chunk._2.length())
@@ -73,42 +58,43 @@ object Day12Challenge:
           )
       }
 
-      val (springStatus, springIdx) = springRowStatus.head
+      val (springStatus, springIdx) = status.head
       if (springStatus == SpringStatus.Malfunction.getValue()) {
         val newMalfunctionChunk = malfunctionChunk
           .map(chunk => (chunk._1, chunk._2 :+ springStatus))
           .getOrElse(
             (springIdx, springStatus.toString())
           )
-        malfunctionRangesHelper(springRowStatus.tail, Some(newMalfunctionChunk), result)
+        malfunctionRangesHelper(status.tail, Some(newMalfunctionChunk), result)
       } else {
         malfunctionChunk match {
           case Some(malfunctionChunk) =>
             val malfunctionRange = Range(malfunctionChunk._1, malfunctionChunk._1 + malfunctionChunk._2.length())
-            malfunctionRangesHelper(springRowStatus.tail, None, result :+ malfunctionRange)
+            malfunctionRangesHelper(status.tail, None, result :+ malfunctionRange)
           case _ =>
-            malfunctionRangesHelper(springRowStatus.tail, None, result)
+            malfunctionRangesHelper(status.tail, None, result)
         }
       }
     }
 
-    malfunctionRangesHelper(springRowStatus.zipWithIndex)
+    malfunctionRangesHelper(status.zipWithIndex)
   }
 
-  def bestMatchRange(springsStatus: String, springsCount: Seq[Int], malfunctionRange: Range) = {
-    val malfunctionChunk = springsStatus.slice(malfunctionRange.start, malfunctionRange.end)
+  def bestMatchRange(status: String, groups: Seq[Int], malfunctionRange: Range) = {
+    val malfunctionChunk = status.slice(malfunctionRange.start, malfunctionRange.end)
     val leftSideFields =
-      springsStatus
+      status
         .slice(0, malfunctionRange.start)
         .reverse
         .takeWhile(_ != SpringStatus.Operational.getValue())
         .length()
     val rightSideFields =
-      springsStatus
-        .slice(malfunctionRange.end, springsStatus.length())
+      status
+        .slice(malfunctionRange.end, status.length())
         .takeWhile(_ != SpringStatus.Operational.getValue())
         .length()
 
+    @tailrec
     def checkBestMatch(
         springStatusCounts: Seq[Int],
         results: Seq[RangeMatch] = Seq()
@@ -133,34 +119,40 @@ object Day12Challenge:
       val rangeStart = malfunctionRange.start - maxLeft
       val rangeEnd = malfunctionRange.end + maxRight
 
-      return results :+ (sprintStatusCount, Some(Range(rangeStart, rangeEnd)))
+      val previousRangeEnd =
+        results.lastOption.flatMap(rangeMatch => rangeMatch._2.map(_.start + rangeMatch._1)).getOrElse(0)
+
+      println(f"${rangeStart}, ${previousRangeEnd}")
+      val rStart = Math.max(rangeStart, previousRangeEnd)
+
+      return results :+ (sprintStatusCount, Some(Range(rStart, rangeEnd)))
     }
 
-    checkBestMatch(springsCount)
+    checkBestMatch(groups)
   }
 
   def lastPartCheck(springRow: SpringRow, lastRangeMatch: RangeMatch) = {
-    val remainingSpringRow = springRow.springsStatus.drop(lastRangeMatch._2.get.start + lastRangeMatch._1)
+    val remainingSpringRow = springRow.status.drop(lastRangeMatch._2.get.start + lastRangeMatch._1)
 
-    def xxxxx(springsStatus: String, sprintCount: Seq[Int]): Seq[Int] = {
-      if (springsStatus.isEmpty() || sprintCount.isEmpty) {
+    def xxxxx(status: String, sprintCount: Seq[Int]): Seq[Int] = {
+      if (status.isEmpty() || sprintCount.isEmpty) {
         return sprintCount
       }
 
-      val operationalFields = springsStatus.takeWhile(_ == SpringStatus.Operational.getValue())
+      val operationalFields = status.takeWhile(_ == SpringStatus.Operational.getValue())
       val springStatus =
-        springsStatus.drop(operationalFields.length()).takeWhile(_ != SpringStatus.Operational.getValue())
+        status.drop(operationalFields.length()).takeWhile(_ != SpringStatus.Operational.getValue())
 
       val fieldsRequired = if (operationalFields.isEmpty()) sprintCount.head + 1 else sprintCount.head
       if (fieldsRequired <= springStatus.length()) {
-        xxxxx(springsStatus.drop(operationalFields.length() + fieldsRequired), sprintCount.tail)
+        xxxxx(status.drop(operationalFields.length() + fieldsRequired), sprintCount.tail)
       } else {
-        xxxxx(springsStatus.drop(operationalFields.length() + springStatus.length()), sprintCount)
+        xxxxx(status.drop(operationalFields.length() + springStatus.length()), sprintCount)
       }
       // ##?.?.????? 3, 2, 1
     }
 
-    xxxxx(remainingSpringRow, springRow.springsCount)
+    xxxxx(remainingSpringRow, springRow.groups)
   }
 
   def xxx(
@@ -172,9 +164,9 @@ object Day12Challenge:
       return rangeMatches.lastOption
         .map(range => {
           val matched = lastPartCheck(springRow, range).isEmpty
-          (matched, rangeMatches ++ springRow.springsCount.map((_, None)))
+          (matched, rangeMatches ++ springRow.groups.map((_, None)))
         })
-        .getOrElse((true, springRow.springsCount.map((_, None))))
+        .getOrElse((true, springRow.groups.map((_, None))))
     }
 
     val malfunctionRange = malfunctionRanges.head
@@ -187,10 +179,10 @@ object Day12Challenge:
     }
 
     val bestRangeMatch =
-      bestMatchRange(springRow.springsStatus, springRow.springsCount, malfunctionRange)
+      bestMatchRange(springRow.status, springRow.groups, malfunctionRange)
 
     val result = xxx(
-      springRow.copy(springsCount = springRow.springsCount.drop(bestRangeMatch.length)),
+      springRow.copy(groups = springRow.groups.drop(bestRangeMatch.length)),
       malfunctionRanges.tail,
       rangeMatches ++ bestRangeMatch
     )
@@ -199,15 +191,15 @@ object Day12Challenge:
       result
     } else {
       xxx(
-        springRow.copy(springsCount = springRow.springsCount.drop(1)),
+        springRow.copy(groups = springRow.groups.drop(1)),
         malfunctionRanges,
-        rangeMatches :+ (springRow.springsCount.head, None)
+        rangeMatches :+ (springRow.groups.head, None)
       )
     }
   }
 
   def bestMatch(springRow: SpringRow): (Boolean, Seq[RangeMatch]) = {
-    val malfunctionRanges = findMalfunctionRanges(springRow.springsStatus)
+    val malfunctionRanges = findMalfunctionRanges(springRow.status)
     val results = xxx(springRow, malfunctionRanges)
 
     results
@@ -217,7 +209,7 @@ object Day12Challenge:
     Using.Manager { use =>
       try {
         val springsData =
-          use(Source.fromResource("day12/input.txt")).getLines().toSeq
+          use(Source.fromResource("day12/smallInput.txt")).getLines().toSeq
         val springRows = parseSpringData(springsData)
         springRows.foreach(x => {
           println(f"${x} => ${bestMatch(x)}")
