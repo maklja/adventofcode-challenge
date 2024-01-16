@@ -51,7 +51,7 @@ object Day12Challenge:
 
     val newRange = Range(rangeStart + malfunctionIdx, rangeStart + malfunctionIdx + malfunctionSize)
     val newMalfunctions = malfunctions :+ newRange
-    findMalfunctionRanges(status.drop(newRange.length), newMalfunctions)
+    findMalfunctionRanges(status.drop(newRange.end), newMalfunctions)
   }
 
   def bestMatchRange(status: String, groups: Seq[Int], malfunctionRange: Range, prevRange: Option[MalfunctionRange]) = {
