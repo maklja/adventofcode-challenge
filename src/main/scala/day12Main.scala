@@ -23,6 +23,9 @@ object Day12Challenge:
     def canBeMalfunction(value: Char) =
       value == SpringStatus.Malfunction.getValue() || value == SpringStatus.Unknown.getValue()
 
+    def isConcrete(value: Char) =
+      value == SpringStatus.Malfunction.getValue() || value == SpringStatus.Operational.getValue()
+
   case class SpringRow(status: String, groups: Seq[Int])
 
   case class MalfunctionRange(group: Int, range: Option[Range])
@@ -150,7 +153,6 @@ object Day12Challenge:
 
     val bestRangeMatch =
       bestMatchRange(springRow.status, springRow.groups, malfunctionRange, rangeMatches.lastOption)
-
     val result = xxx(
       springRow.copy(groups = springRow.groups.drop(bestRangeMatch.length)),
       malfunctionRanges.tail,
@@ -168,47 +170,56 @@ object Day12Challenge:
     }
   }
 
+  def applyUnknownStatus(
+      status: String,
+      malfunctionRange: MalfunctionRange,
+      position: Int
+  ): (String, MalfunctionRange) = {
+    val statusChunk =
+      status.drop(position).indexOfSlice(SpringStatus.Unknown.getValueStr().repeat(malfunctionRange.group))
+    val newStatus = status.patch(
+      position + statusChunk,
+      SpringStatus.Malfunction.getValueStr().repeat(malfunctionRange.group),
+      malfunctionRange.group
+    )
+    val offset = position + statusChunk + malfunctionRange.group
+    val lastConcreteStatusIdx =
+      status.drop(offset).indexWhere(SpringStatus.isConcrete(_))
+    val endRange = if (lastConcreteStatusIdx == -1) newStatus.length() else lastConcreteStatusIdx + offset
+
+    (newStatus, MalfunctionRange(malfunctionRange.group, Some(Range(position + statusChunk, endRange))))
+  }
+
   def applyStatusRange(status: String, malfunctionRanges: Seq[MalfunctionRange], position: Int = 0): Unit = {
     val malfunctionRange = malfunctionRanges.head
 
-    val range = malfunctionRange.range.getOrElse(Range(0, malfunctionRange.group))
+    if (malfunctionRange.range.isEmpty) {
+      val (newStatus, newMalfunctionRange) = applyUnknownStatus(status, malfunctionRange, position)
+      println(f"${status} - ${newStatus} - ${newMalfunctionRange}")
+    } else {
+      println(f"${status} - ${malfunctionRange}")
+    }
+    // val range = malfunctionRange.range.getOrElse(Range(position, status.length()))
 
-    println(malfunctionRange)
-    val tesss = range.map(curSpot => {
-      val statusIdx = status
-        .drop(curSpot + position)
-        .indexWhere(SpringStatus.canBeMalfunction(_))
+    // println(status)
+    // val rr = range.map(curRange => {
+    //   val updatedStatus = status.patch(
+    //     curRange,
+    //     SpringStatus.Malfunction.getValueStr().repeat(malfunctionRange.group),
+    //     malfunctionRange.group
+    //   )
 
-      if (statusIdx == -1) {
-        Option.empty[String]
-      } else {
-        val malfunctionsCount = status
-          .slice(curSpot + position + statusIdx, status.length())
-          .count(canBeMalfunction(_))
+    //   val controlCheck =
+    //     updatedStatus.slice(curRange, status.length()).takeWhile(_ == SpringStatus.Malfunction.getValue()).length()
 
-        val updatedStatus = status.patch(
-          curSpot + position + statusIdx,
-          SpringStatus.Malfunction.getValueStr().repeat(malfunctionRange.group),
-          malfunctionRange.group
-        )
+    //   if (controlCheck == malfunctionRange.group) {
+    //     Some(updatedStatus)
+    //   } else {
+    //     Option.empty
+    //   }
+    // })
 
-        val updatedCount =
-          updatedStatus
-            .drop(position)
-            .takeWhile(_ == SpringStatus.Malfunction.getValue())
-            .length()
-        println(f"${updatedStatus
-            .drop(curSpot + position)} => ${updatedCount}")
-        if (updatedCount == malfunctionRange.group) {
-          Some(updatedStatus)
-        } else {
-          None
-        }
-
-      }
-    })
-
-    println(tesss)
+    // println(rr)
     // if (malfunctionsCount >= malfunctionRange.group) {
     //   val updatedStatus = status.patc
     // }
@@ -222,18 +233,56 @@ object Day12Challenge:
   //   cas
   // }
 
-  def bestMatch(springRow: SpringRow): (Boolean, Seq[MalfunctionRange]) = {
-    val malfunctionRanges = findMalfunctionRanges(springRow.status)
-    val results = xxx(springRow, malfunctionRanges)
+  case class MarkStatus(unknownCount: Int = 0, malfunctionMark: Int = 0, latestPosition: Int = 0) {
+    def matchGroup(group: Int) = {
+      unknownCount + malfunctionMark == group
+    }
+  }
 
-    applyStatusRange(springRow.status, results._2)
+  def markContinuesGroup(status: String, group: Int, position: Int = 0): Unit = {
+    val markStatus = status.zipWithIndex
+      .slice(position, status.length())
+      .foldLeft(MarkStatus())((markStatus, inxStatus) => {
+        val (curStatus, idx) = inxStatus
+        if (markStatus.matchGroup(group)) {
+          markStatus
+        } else if (curStatus == SpringStatus.Malfunction.getValue()) {
+          markStatus.copy(malfunctionMark = markStatus.malfunctionMark + 1, latestPosition = idx)
+        } else if (curStatus == SpringStatus.Unknown.getValue()) {
+          markStatus.copy(unknownCount = markStatus.unknownCount + 1, latestPosition = idx)
+        } else {
+          markStatus.copy(unknownCount = 0, latestPosition = idx)
+        }
+      })
+
+    val afterStatus =
+      status.lift(position + markStatus.latestPosition + 1).getOrElse(SpringStatus.Operational.getValue())
+    if (afterStatus == SpringStatus.Malfunction.getValue()) {
+      return markContinuesGroup(status, group, position + 1)
+    }
+
+    val startRange = position + markStatus.latestPosition - group
+    val endRange = position + markStatus.latestPosition
+
+    val newStatus = status.patch(startRange, "#".repeat(group), group) // .patch(endRange + 1, ".", 1)
+    println(newStatus)
+  }
+
+  def bestMatch(springRow: SpringRow) = {
+
+    markContinuesGroup(springRow.status, springRow.groups.head)
+    // val malfunctionRanges = findMalfunctionRanges(springRow.status)
+    // val results = xxx(springRow, malfunctionRanges)
+
+    // println(results)
+    // applyStatusRange(springRow.status, results._2)
     // results._2.foldLeft(springRow.status)((status, range) => {
     //   range.range match {
     //     case None =>
     //   }
     // })
 
-    results
+    // results
   }
 
   @main def day12Main(): Unit =
