@@ -8,7 +8,6 @@ object Day12Challenge:
     case Operational extends SpringStatus('.')
     case Malfunction extends SpringStatus('#')
     case Unknown extends SpringStatus('?')
-    case Marked extends SpringStatus('*')
 
     def getValue() = value
 
@@ -17,7 +16,6 @@ object Day12Challenge:
         case '.' => """."""
         case '#' => "#"
         case '?' => """?"""
-        case '*' => "*"
 
   case class SpringRow(status: String, groups: Seq[Int])
 
