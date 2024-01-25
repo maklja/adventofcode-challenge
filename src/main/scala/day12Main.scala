@@ -1,6 +1,7 @@
 import scala.annotation.tailrec
 import scala.io.Source
 import scala.util.Using
+import scala.collection.parallel.CollectionConverters._
 
 object Day12Challenge:
 
@@ -102,12 +103,17 @@ object Day12Challenge:
     val group = groups.head
     val skippedOperationalCount =
       status.slice(position, status.length()).takeWhile(_ == SpringStatus.Operational.getValue()).length()
-    val groupRange = Range(position + skippedOperationalCount, status.length())
+    val groupRange = Range(position + skippedOperationalCount, status.length() * 2)
+    // println(f"Status ${status}")
     groupRange.flatMap(curPosition => {
       val result = markContinuesGroup(status, group, curPosition)
       result match {
         case Some((newStatus, newPosition)) =>
-          markGroups(newStatus, groups.tail, newPosition, markedStatus)
+          val xx = newStatus.takeWhile(_ == '?').length()
+          val xxx = if (xx > 0) newStatus.drop(xx - 1) else newStatus
+          val xxxx = if (xx > 1) "?".repeat(xx - 1) else ""
+          println(f"${newStatus}, ${xxx + xxxx}")
+          markGroups(xxx + xxxx, groups.tail, newPosition - (xx - 1), markedStatus)
         case _ => None
       }
     })
@@ -135,17 +141,53 @@ object Day12Challenge:
         }
       })
       .distinct
+      // .tapEach(println(_))
       .length
+  }
+
+  def unfoldHotSpringCombinations(springRow: SpringRow) = {
+    val status = springRow.status
+    val malfunctionChar = SpringStatus.Malfunction.getValue()
+    val prefixedStatus = status.last match {
+      case `malfunctionChar` => status
+      case _                 => f"${SpringStatus.Unknown.getValue()}${status}"
+    }
+    val postfixedStatus = status.head match {
+      case `malfunctionChar` => status
+      case _                 => f"${status}${SpringStatus.Unknown.getValue()}"
+    }
+
+    val prefixedCombinations = hotSpringCombinations(springRow.copy(status = prefixedStatus))
+    // val postfixedCombinations = hotSpringCombinations(springRow.copy(status = postfixedStatus))
+
+    prefixedCombinations
+    // prefixedCombinations * postfixedCombinations
+    // Math.pow(Math.max(prefixedCombinations, postfixedCombinations), 4).toLong * Math.min(
+    //   prefixedCombinations,
+    //   postfixedCombinations
+    // )
   }
 
   @main def day12Main(): Unit =
     Using.Manager { use =>
       try {
         val springsData =
-          use(Source.fromResource("day12/input.txt")).getLines().toSeq
+          use(Source.fromResource("day12/smallInput.txt")).getLines().toSeq
         val springRows = parseSpringData(springsData)
-        val hotSpringCombinationsSum = springRows.map(hotSpringCombinations).sum
+        val hotSpringCombinationsSum = springRows.par.map(hotSpringCombinations).sum
         println(f"Hot springs combinations count: ${hotSpringCombinationsSum}")
+
+        val hotSpringCombinationsSum1 = springRows.par.map(unfoldHotSpringCombinations).sum
+
+        println(hotSpringCombinationsSum1)
+        // val xx =
+        //   springRows.map(springRow => SpringRow(f"${springRow.status}?", springRow.groups))
+        // val xxx =
+        //   springRows.map(springRow => SpringRow(f"?${springRow.status}", springRow.groups))
+        // val hotSpringCombinationsSum1 = xx.map(hotSpringCombinations)
+        // println(f"Hot springs combinations count: ${hotSpringCombinationsSum1}")
+        // val hotSpringCombinationsSum2 = xxx.map(hotSpringCombinations)
+        // println(f"Hot springs combinations count: ${hotSpringCombinationsSum2}")
 
       } catch {
         case e: RuntimeException => e.printStackTrace()
