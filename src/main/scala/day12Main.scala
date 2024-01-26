@@ -103,17 +103,12 @@ object Day12Challenge:
     val group = groups.head
     val skippedOperationalCount =
       status.slice(position, status.length()).takeWhile(_ == SpringStatus.Operational.getValue()).length()
-    val groupRange = Range(position + skippedOperationalCount, status.length() * 2)
-    // println(f"Status ${status}")
+    val groupRange = Range(position + skippedOperationalCount, status.length())
     groupRange.flatMap(curPosition => {
       val result = markContinuesGroup(status, group, curPosition)
       result match {
         case Some((newStatus, newPosition)) =>
-          val xx = newStatus.takeWhile(_ == '?').length()
-          val xxx = if (xx > 0) newStatus.drop(xx - 1) else newStatus
-          val xxxx = if (xx > 1) "?".repeat(xx - 1) else ""
-          println(f"${newStatus}, ${xxx + xxxx}")
-          markGroups(xxx + xxxx, groups.tail, newPosition - (xx - 1), markedStatus)
+          markGroups(newStatus, groups.tail, newPosition, markedStatus)
         case _ => None
       }
     })
@@ -157,22 +152,45 @@ object Day12Challenge:
       case _                 => f"${status}${SpringStatus.Unknown.getValue()}"
     }
 
-    val prefixedCombinations = hotSpringCombinations(springRow.copy(status = prefixedStatus))
-    // val postfixedCombinations = hotSpringCombinations(springRow.copy(status = postfixedStatus))
+    val x = f"${prefixedStatus}?${status}?${postfixedStatus}"
+    val xxx = hotSpringCombinations(
+      springRow.copy(status = x, groups = springRow.groups.concat(springRow.groups).concat(springRow.groups))
+    )
+    val x1 = hotSpringCombinations(springRow.copy(status = prefixedStatus))
+    val x2 = hotSpringCombinations(springRow.copy(status = postfixedStatus))
 
-    prefixedCombinations
-    // prefixedCombinations * postfixedCombinations
-    // Math.pow(Math.max(prefixedCombinations, postfixedCombinations), 4).toLong * Math.min(
-    //   prefixedCombinations,
-    //   postfixedCombinations
-    // )
+    // println(f"${status} = ${xxx} = ${x1} = ${x2}")
+    // val xx = postfixedStatus
+    // val xxx = hotSpringCombinations(springRow.copy(status = xx))
+    // val x1 = hotSpringCombinations(springRow)
+    // println(f"${xx} = ${xxx} = ${Math.pow(xxx, 4).toLong} ${x1} ${Math.pow(xxx, 4).toLong * x1}")
+    // // val prefixedCombinations = hotSpringCombinations(springRow.copy(status = prefixedStatus))
+    // // val postfixedCombinations = hotSpringCombinations(springRow.copy(status = postfixedStatus))
+
+    // // Math.pow(Math.max(prefixedCombinations, postfixedCombinations), 4).toLong * Math.min(
+    // //   prefixedCombinations,
+    // //   postfixedCombinations
+    // // )
+    // Math.pow(xxx, 4).toLong * x1.toLong
+    xxx * x1 * x2
   }
 
+  /*
+  ???.### 1,1,3 - 1 arrangement
+.??..??...?##. 1,1,3 - 16384 arrangements
+?#?#?#?#?#?#?#? 1,3,1,6 - 1 arrangement
+????.#...#... 4,1,1 - 16 arrangements
+????.######..#####. 1,6,5 - 2500 arrangements
+?###???????? 3,2,1 - 506250 arrangements
+   */
+
+  ///   // 525152
+  // 400940731970390
   @main def day12Main(): Unit =
     Using.Manager { use =>
       try {
         val springsData =
-          use(Source.fromResource("day12/smallInput.txt")).getLines().toSeq
+          use(Source.fromResource("day12/input.txt")).getLines().toSeq
         val springRows = parseSpringData(springsData)
         val hotSpringCombinationsSum = springRows.par.map(hotSpringCombinations).sum
         println(f"Hot springs combinations count: ${hotSpringCombinationsSum}")
