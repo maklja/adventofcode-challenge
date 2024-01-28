@@ -251,6 +251,10 @@ object Day12Challenge:
     val statusPart =
       status.drop(malfunctionBegin.length()).takeWhile(_ != SpringStatus.Operational.getValue())
 
+    // println(
+    //   statusPart
+    //     .replaceAll("""(\?)+""", SpringStatus.Unknown.getValueStr())
+    // )
     val statusPartCount =
       statusPart
         .replaceAll("""(\?)+""", SpringStatus.Unknown.getValueStr())
@@ -344,11 +348,20 @@ object Day12Challenge:
     }
 end Day12Challenge
 
+// ?#??? (2,1)
+// ##?#?
+// ##?#?
+// ?##?#
+
 // __?_#?? 2,2
 // ?###?_?? 3,1
 // ?_##?_?? 3,1
 
 // 4! / 2! 2! = 6
+
+//?###?#??
+//?###??#?
+//?###???#
 
 // ##?##??
 // ##??##?
@@ -356,3 +369,32 @@ end Day12Challenge
 // ?##?##?
 // ?##??##
 // ??##?##
+
+// ?#????? (3,1)
+
+// ###?#??
+// ###??#?
+// ###???#
+// ?###?#?
+// ?###??#
+
+// 1 hardcoded / 3 expected => +/- 2
+// allowed combinations 2
+// 3 - 2 = 1
+
+// 7 => 4
+// 4! / 2! * 2! => 6 - 1
+
+// ???#??#?? (2,2)
+// ??##?##??
+// ??##??##?
+// ???#??##?
+
+// 7 - 2 - 1 = 4
+// 4! / 2! *2! => 6
+
+// 4 - 2 = 2
+// 3 - 2 = 1
+
+
+
