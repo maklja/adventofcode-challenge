@@ -20,6 +20,8 @@ object Day12Challenge:
         case '?' => """?"""
         case '_' => "_"
 
+  val concreteSpringStatus = Seq(SpringStatus.Malfunction.getValue(), SpringStatus.Marked.getValue())
+
   case class SpringRow(status: String, groups: Seq[Int])
 
   def parseSpringData(springData: Seq[String]) =
@@ -80,42 +82,6 @@ object Day12Challenge:
     val startRange = markStatus.latestPosition - group
     val endRange = markStatus.latestPosition
 
-    val newStatus = status
-      .patch(
-        startRange,
-        SpringStatus.Malfunction.getValueStr().repeat(group),
-        group
-      )
-
-    Some((newStatus, endRange))
-  }
-
-  def markContinuesGroup1(status: String, group: Int, position: Int = 0): Option[(String, Int)] = {
-    val markStatus = status
-      .slice(position, status.length())
-      .zipWithIndex
-      .foldLeft(MarkStatus())((markStatus, inxStatus) => {
-        val (curStatus, idx) = inxStatus
-        if (markStatus.matchGroup(group)) {
-          markStatus
-        } else {
-          markStatus.markStatus(curStatus, position + idx + 1)
-        }
-      })
-
-    if (!markStatus.matchGroup(group)) {
-      return None
-    }
-
-    val afterStatus =
-      status.lift(markStatus.latestPosition).getOrElse(SpringStatus.Operational.getValue())
-    if (afterStatus == SpringStatus.Malfunction.getValue()) {
-      return markContinuesGroup(status, group, position + 1)
-    }
-
-    val startRange = markStatus.latestPosition - group
-    val endRange = markStatus.latestPosition
-
     val statusChunk = status
       .slice(startRange, startRange + group)
       .map(curStatus => {
@@ -136,40 +102,12 @@ object Day12Challenge:
   }
 
   def markGroups(
-      status: String,
-      groups: Seq[Int],
-      position: Int = 0,
-      markedStatus: Seq[Option[String]] = Seq()
-  ): Seq[Option[String]] = {
-    if (groups.isEmpty) {
-      return markedStatus :+ Some(
-        status.replace(SpringStatus.Unknown.getValueStr(), SpringStatus.Operational.getValueStr())
-      )
-    }
-
-    val group = groups.head
-    val skippedOperationalCount =
-      status.slice(position, status.length()).takeWhile(_ == SpringStatus.Operational.getValue()).length()
-    val groupRange = Range(position + skippedOperationalCount, status.length())
-    groupRange.flatMap(curPosition => {
-      val result = markContinuesGroup(status, group, curPosition)
-      result match {
-        case Some((newStatus, newPosition)) =>
-          markGroups(newStatus, groups.tail, newPosition, markedStatus)
-        case _ => None
-      }
-    })
-  }
-
-  def markGroupsSlim(
       springRow: SpringRow,
       remainingGroups: Seq[Int],
       position: Int = 0
   ): Option[SpringRow] = {
     if (remainingGroups.isEmpty) {
-      // val cleanedStatus = springRow.status.dropWhile(_ == SpringStatus.Unknown.getValue())
-      // val cleanedSpringRow = springRow.copy(status = cleanedStatus)
-      return if (patternMatch1(springRow)) Some(springRow) else None
+      return if (patternMatch(springRow)) Some(springRow) else None
     }
 
     val status = springRow.status
@@ -185,13 +123,13 @@ object Day12Challenge:
         return None
       }
       val curPosition = groupRange.head
-      val result = markContinuesGroup1(status, group, curPosition)
+      val result = markContinuesGroup(status, group, curPosition)
       result match {
         case Some((newStatus, newPosition)) =>
           val skipNextPosition =
             newStatus.lift(newPosition).map(_ == SpringStatus.Unknown.getValue()).getOrElse(false)
           val p = if (skipNextPosition) newPosition + 1 else newPosition
-          markGroupsSlim(springRow.copy(status = newStatus), remainingGroups.tail, p)
+          markGroups(springRow.copy(status = newStatus), remainingGroups.tail, p)
             .orElse(findMatch(groupRange.tail))
         case _ => findMatch(groupRange.tail)
       }
@@ -200,7 +138,7 @@ object Day12Challenge:
     findMatch(Range(position + skippedOperationalCount, status.length()))
   }
 
-  def patternMatch1(springRow: SpringRow): Boolean = {
+  def patternMatch(springRow: SpringRow): Boolean = {
     val normalizedStatus = springRow.status
       .replace(SpringStatus.Marked.getValueStr(), SpringStatus.Malfunction.getValueStr())
       .replace(SpringStatus.Unknown.getValueStr(), SpringStatus.Operational.getValueStr())
@@ -215,31 +153,6 @@ object Day12Challenge:
     springRow.groups.zip(statusParts).forall(tuple => tuple._1 == tuple._2.length())
   }
 
-  def patternMatch(status: String, groups: Seq[Int]): Boolean = {
-    val normalizedStatus = status
-      .replaceAll("""(\.)+""", SpringStatus.Operational.getValueStr())
-      .dropWhile(_ == SpringStatus.Operational.getValue())
-
-    val statusParts = normalizedStatus.split("""(\.)""")
-    if (statusParts.length != groups.length) {
-      return false
-    }
-
-    groups.zip(statusParts).forall(tuple => tuple._1 == tuple._2.length())
-  }
-
-  def hotSpringCombinations(springRow: SpringRow) = {
-    markGroups(springRow.status, springRow.groups)
-      .filter(newStatus => {
-        newStatus match {
-          case Some(value) => patternMatch(value, springRow.groups)
-          case _           => false
-        }
-      })
-      .distinct
-      .length
-  }
-
   def defineSpringRowParts(springRow: SpringRow, springRowParts: Seq[SpringRow] = Seq()): Seq[SpringRow] = {
     if (springRow.groups.isEmpty) {
       return springRowParts;
@@ -251,66 +164,69 @@ object Day12Challenge:
     val statusPart =
       status.drop(malfunctionBegin.length()).takeWhile(_ != SpringStatus.Operational.getValue())
 
-    // println(
-    //   statusPart
-    //     .replaceAll("""(\?)+""", SpringStatus.Unknown.getValueStr())
-    // )
     val statusPartCount =
       statusPart
         .replaceAll("""(\?)+""", SpringStatus.Unknown.getValueStr())
         .split(f"""\\${SpringStatus.Unknown.getValueStr()}""")
         .length
     val groupsPart = groups.take(statusPartCount)
-    val springRowPart = SpringRow(statusPart, groupsPart)
 
     val remainingStatusPart = status.drop(malfunctionBegin.length() + statusPart.length())
     val remainingGroups = groups.drop(statusPartCount)
 
-    defineSpringRowParts(
-      springRow.copy(status = remainingStatusPart, groups = remainingGroups),
-      springRowParts :+ springRowPart
-    )
+    if (groupsPart.isEmpty) {
+      val prevSpringRowPart = springRowParts.last
+      val updatedPrevSpringRowPart = prevSpringRowPart.copy(status = prevSpringRowPart.status + statusPart)
+      defineSpringRowParts(
+        springRow.copy(status = remainingStatusPart, groups = remainingGroups),
+        springRowParts.dropRight(1) :+ updatedPrevSpringRowPart
+      )
+    } else {
+      val springRowPart = SpringRow(statusPart, groupsPart)
+      defineSpringRowParts(
+        springRow.copy(status = remainingStatusPart, groups = remainingGroups),
+        springRowParts :+ springRowPart
+      )
+    }
   }
 
   def factorial(n: Int): Int = {
     (1 to n).foldLeft(1)(_ * _)
   }
 
+  def scanStatusForGroup(status: String, groups: Seq[Int]): Unit = {
+    if (groups.isEmpty) {
+      return;
+    }
+
+    val group = groups.head
+    val groupStatus = status.zipWithIndex.foldLeft(("", -1))((groupStatus, currentIdxStatus) => {
+      val (curStatus, idx) = currentIdxStatus
+      if (groupStatus._1.length() == group) {
+        groupStatus
+      } else if (concreteSpringStatus.contains(curStatus)) {
+        (groupStatus._1 + curStatus, idx)
+      } else {
+        ("", -1)
+      }
+    })
+
+    val remainingStatus = status.slice(groupStatus._2 + 2, status.length())
+
+    scanStatusForGroup(status.drop(groupStatus._2 + 1), groups.tail)
+  }
+
   def calcSpringRowCombinations(springRow: SpringRow): Int = {
-    println(springRow)
+    val status = springRow.status.dropWhile(curStatus =>
+      curStatus == SpringStatus.Unknown.getValue() || curStatus == SpringStatus.Operational.getValue()
+    )
     val groupsCount = springRow.groups.length
-    val totalSpots = springRow.status.length()
+    val totalSpots = status.length()
     val takenSpots = springRow.groups.map(_ - 1).sum
     val spacesBetweenMalfunctions = groupsCount - 1
     val remainingSpots = totalSpots - takenSpots - spacesBetweenMalfunctions
 
     factorial(remainingSpots) / (factorial(groupsCount) * factorial(remainingSpots - groupsCount))
-  }
-
-  def trackGroupRanges(springRow: SpringRow): Unit = {
-    if (springRow.groups.isEmpty) {
-      return;
-    }
-
-    val status = springRow.status
-    val groups = springRow.groups
-    val statusPart = status.takeWhile(_ != SpringStatus.Malfunction.getValue())
-
-    // val statusPartCount =
-    //   statusPart
-    //     .replaceAll("""(\?)+""", SpringStatus.Unknown.getValueStr())
-    //     .split(f"""\\${SpringStatus.Unknown.getValueStr()}""")
-    //     .length
-    // val groupsPart = groups.take(statusPartCount)
-    // val springRowPart = SpringRow(statusPart, groupsPart)
-
-    // val remainingStatusPart = status.drop(malfunctionBegin.length() + statusPart.length())
-    // val remainingGroups = groups.drop(statusPartCount)
-
-    // defineSpringRowParts(
-    //   springRow.copy(status = remainingStatusPart, groups = remainingGroups),
-    //   springRowParts :+ springRowPart
-    // )
   }
 
   ///   // 525152
@@ -321,16 +237,17 @@ object Day12Challenge:
         val springsData =
           use(Source.fromResource("day12/smallInput.txt")).getLines().toSeq
         val springRows = parseSpringData(springsData)
-        val hotSpringCombinationsSum = springRows.par.map(hotSpringCombinations).sum
-        println(f"Hot springs combinations count: ${hotSpringCombinationsSum}")
+        // val hotSpringCombinationsSum = springRows.par.map(hotSpringCombinations).sum
+        // println(f"Hot springs combinations count: ${hotSpringCombinationsSum}")
 
         val hotSpringCombinationsSum1 =
           springRows
-            .map(springRow => markGroupsSlim(springRow, springRow.groups))
+            .map(springRow => markGroups(springRow, springRow.groups))
             .flatten
-            // .foreach(println(_))
+            .tapEach(x => println(x))
             .map(springRow => defineSpringRowParts(springRow))
-            .foreach(x => println(x))
+            .tapEach(x => println(x))
+            .foreach(x => x.foreach(xx => scanStatusForGroup(xx.status, xx.groups)))
 
         println(hotSpringCombinationsSum1)
         // val xx =
@@ -395,6 +312,3 @@ end Day12Challenge
 
 // 4 - 2 = 2
 // 3 - 2 = 1
-
-
-
