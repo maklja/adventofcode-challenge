@@ -24,14 +24,7 @@ object Day12Challenge:
 
   case class SpringRow(status: String, groups: Seq[Int])
 
-  case class GroupRange(groupStatus: String, range: Range, otherGroups: Seq[Int]) {
-    def combinations() = {
-      println(f"${groupStatus} = ${range}")
-      val group = groupStatus.length()
-      val normalizedSpots = range.length - (group - 1) - otherGroups.length
-      factorial(normalizedSpots) / factorial(normalizedSpots - 1)
-    }
-  }
+  case class GroupRange(groupStatus: String, range: Range, otherGroups: Seq[Int])
 
   def parseSpringData(springData: Seq[String]) =
     springData.map(curSpringData => {
@@ -184,12 +177,21 @@ object Day12Challenge:
     val remainingGroups = groups.drop(statusPartCount)
 
     if (groupsPart.isEmpty) {
-      val prevSpringRowPart = springRowParts.last
-      val updatedPrevSpringRowPart = prevSpringRowPart.copy(status = prevSpringRowPart.status + statusPart)
-      defineSpringRowParts(
-        springRow.copy(status = remainingStatusPart, groups = remainingGroups),
-        springRowParts.dropRight(1) :+ updatedPrevSpringRowPart
-      )
+      val prevSpringRowPart = springRowParts.lastOption
+      prevSpringRowPart match
+        case Some(springRowPart) => {
+          val updatedPrevSpringRowPart = springRowPart.copy(status = springRowPart.status + statusPart)
+          defineSpringRowParts(
+            springRow.copy(status = remainingStatusPart, groups = remainingGroups),
+            springRowParts.dropRight(1) :+ updatedPrevSpringRowPart
+          )
+        }
+        case _ => {
+          defineSpringRowParts(
+            springRow.copy(status = remainingStatusPart, groups = remainingGroups),
+            springRowParts
+          )
+        }
     } else {
       val springRowPart = SpringRow(statusPart, groupsPart)
       defineSpringRowParts(
@@ -255,17 +257,21 @@ object Day12Challenge:
     }
   }
 
-  def calcSpringRowCombinations(springRow: SpringRow): Int = {
-    val status = springRow.status.dropWhile(curStatus =>
-      curStatus == SpringStatus.Unknown.getValue() || curStatus == SpringStatus.Operational.getValue()
+  def tt(groupRanges: Seq[GroupRange]) = {
+    val groupsCount = groupRanges.length
+    val spots = groupRanges.last.range.end - groupRanges.head.range.start
+    val normalizedSpots = spots - groupRanges
+      .map(_.groupStatus.length() - 1)
+      .sum
+    val normalizedSpotsNoSpaces = normalizedSpots - (groupsCount - 1)
+    val status = groupRanges.map(_.groupStatus).mkString
+    val totalSpotsCombinations = factorial(normalizedSpotsNoSpaces)
+    val groupsCombinations = factorial(groupsCount) * factorial(normalizedSpotsNoSpaces - groupsCount)
+    println(
+      f"${status} = ${spots} = ${normalizedSpotsNoSpaces} = ${totalSpotsCombinations / groupsCombinations}"
     )
-    val groupsCount = springRow.groups.length
-    val totalSpots = status.length()
-    val takenSpots = springRow.groups.map(_ - 1).sum
-    val spacesBetweenMalfunctions = groupsCount - 1
-    val remainingSpots = totalSpots - takenSpots - spacesBetweenMalfunctions
-
-    factorial(remainingSpots) / (factorial(groupsCount) * factorial(remainingSpots - groupsCount))
+    println()
+    totalSpotsCombinations / groupsCombinations
   }
 
   ///   // 525152
@@ -276,37 +282,38 @@ object Day12Challenge:
         val springsData =
           use(Source.fromResource("day12/smallInput.txt")).getLines().toSeq
         val springRows = parseSpringData(springsData)
-        // val hotSpringCombinationsSum = springRows.par.map(hotSpringCombinations).sum
-        // println(f"Hot springs combinations count: ${hotSpringCombinationsSum}")
 
         val hotSpringCombinationsSum1 =
           springRows
             .map(springRow => markGroups(springRow, springRow.groups))
             .flatten
-            .tapEach(x => println(x))
             .map(springRow => {
               val springRowParts = defineSpringRowParts(springRow)
               val combinations = springRowParts
-                .flatMap(springRowPart => scanStatusForGroup(springRowPart.status, springRowPart.groups))
-                .zipWithIndex
-                .map(idxSpringGroupRange => {
-                  val (springGroupRange, idx) = idxSpringGroupRange
-                  springGroupRange.combinations()
+                .map(springRowPart => {
+                  val groupRanges = scanStatusForGroup(springRowPart.status, springRowPart.groups)
+                  val xx = groupRanges.foldLeft(Seq[Seq[GroupRange]]())((intersections, groupRange) => {
+                    val lastRanges = intersections.lastOption.getOrElse(Seq())
+                    val lastRange = lastRanges.lastOption
+                    lastRange match
+                      case Some(lastGroupRange) if (!lastGroupRange.range.intersect(groupRange.range).isEmpty) =>
+                        intersections.dropRight(1) :+ (lastRanges :+ groupRange)
+                      case _ => intersections :+ (Seq() :+ groupRange)
+                  })
+                  xx.map(tt).fold(1)(_ * _)
                 })
+              // .tapEach(x => println(x))
+              // .zipWithIndex
+              // .map(idxSpringGroupRange => {
+              //   val (springGroupRange, idx) = idxSpringGroupRange
+              //   springGroupRange.combinations()
+              // })
               println(combinations)
-              1
+              combinations.fold(1)(_ * _)
             })
+            .sum
 
         println(hotSpringCombinationsSum1)
-        // val xx =
-        //   springRows.map(springRow => SpringRow(f"${springRow.status}?", springRow.groups))
-        // val xxx =
-        //   springRows.map(springRow => SpringRow(f"?${springRow.status}", springRow.groups))
-        // val hotSpringCombinationsSum1 = xx.map(hotSpringCombinations)
-        // println(f"Hot springs combinations count: ${hotSpringCombinationsSum1}")
-        // val hotSpringCombinationsSum2 = xxx.map(hotSpringCombinations)
-        // println(f"Hot springs combinations count: ${hotSpringCombinationsSum2}")
-
       } catch {
         case e: RuntimeException => e.printStackTrace()
       }
