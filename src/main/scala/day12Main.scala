@@ -24,6 +24,15 @@ object Day12Challenge:
 
   case class SpringRow(status: String, groups: Seq[Int])
 
+  case class GroupRange(groupStatus: String, range: Range, otherGroups: Seq[Int]) {
+    def combinations() = {
+      println(f"${groupStatus} = ${range}")
+      val group = groupStatus.length()
+      val normalizedSpots = range.length - (group - 1) - otherGroups.length
+      factorial(normalizedSpots) / factorial(normalizedSpots - 1)
+    }
+  }
+
   def parseSpringData(springData: Seq[String]) =
     springData.map(curSpringData => {
       val springsAndCounts = curSpringData.split(" ")
@@ -206,12 +215,10 @@ object Day12Challenge:
     group - (lastMalfunction - firstMalfunction + 1)
   }
 
-  case class GroupRange(groupStatus: String, range: Range)
-
-  // __#_??_##_
   def scanStatusForGroup(status: String, groups: Seq[Int], position: Int = 0): Seq[GroupRange] = {
     val group = groups.head
-    val groupStatus = status.zipWithIndex
+    val indexStatus = status.zipWithIndex
+    val groupStatus = indexStatus
       .drop(position)
       .foldLeft(("", -1))((groupStatus, currentIdxStatus) => {
         val (curStatus, idx) = currentIdxStatus
@@ -224,29 +231,28 @@ object Day12Challenge:
         }
       })
 
-    // ?_#
     val groupOffset = groupStatusRange(groupStatus._1)
-    val remainingStatusCount = status.drop(groupStatus._2).length()
+    val remainingStatusCount = indexStatus.last._2 + 1
     val minRange =
       if (groupOffset > -1)
-        Math.min(groupStatus._2 + groupOffset, groupStatus._2 + remainingStatusCount)
-      else if (remainingStatusCount > 0)
+        Math.min(groupStatus._2 + groupOffset, remainingStatusCount)
+      else if (remainingStatusCount > groupStatus._2)
         remainingStatusCount
       else
         groupStatus._2
 
     if (groups.tail.isEmpty) {
-      val groupRange = GroupRange(groupStatus._1, Range(groupStatus._2 - groupStatus._1.length(), minRange))
+      val groupRange = GroupRange(groupStatus._1, Range(groupStatus._2 - groupStatus._1.length(), minRange), Seq())
       Seq(groupRange)
     } else {
       val curGroupRanges = scanStatusForGroup(status, groups.tail, groupStatus._2 + 1);
       val nextRange = curGroupRanges.head
       val nextRangeMax = nextRange.range.end - nextRange.groupStatus.length() - 1
       val endRange = Math.min(minRange, nextRangeMax)
-      val groupRange = GroupRange(groupStatus._1, Range(groupStatus._2 - groupStatus._1.length(), endRange))
+      val groupRange =
+        GroupRange(groupStatus._1, Range(groupStatus._2 - groupStatus._1.length(), endRange), groups.tail)
       groupRange +: curGroupRanges
     }
-    // Seq()
   }
 
   def calcSpringRowCombinations(springRow: SpringRow): Int = {
@@ -278,8 +284,18 @@ object Day12Challenge:
             .map(springRow => markGroups(springRow, springRow.groups))
             .flatten
             .tapEach(x => println(x))
-            .map(springRow => defineSpringRowParts(springRow))
-            .foreach(x => x.foreach(xx => println(scanStatusForGroup(xx.status, xx.groups))))
+            .map(springRow => {
+              val springRowParts = defineSpringRowParts(springRow)
+              val combinations = springRowParts
+                .flatMap(springRowPart => scanStatusForGroup(springRowPart.status, springRowPart.groups))
+                .zipWithIndex
+                .map(idxSpringGroupRange => {
+                  val (springGroupRange, idx) = idxSpringGroupRange
+                  springGroupRange.combinations()
+                })
+              println(combinations)
+              1
+            })
 
         println(hotSpringCombinationsSum1)
         // val xx =
