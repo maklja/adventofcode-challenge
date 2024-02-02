@@ -52,9 +52,7 @@ object Day12Challenge:
     }
 
     def markStatus(status: Char, position: Int) = {
-      if (locked) {
-        this
-      } else if (status == SpringStatus.Malfunction.getValue()) {
+      if (status == SpringStatus.Malfunction.getValue()) {
         copy(malfunctionMark = malfunctionMark + 1, latestPosition = position)
       } else if (status == SpringStatus.Unknown.getValue()) {
         copy(unknownCount = unknownCount + 1, latestPosition = position)
@@ -73,6 +71,10 @@ object Day12Challenge:
     val newMarkStatus = markStatus.markStatus(curStatus, idx + 1)
     if (newMarkStatus.matchGroup(group)) {
       return Some(newMarkStatus)
+    }
+
+    if (newMarkStatus.locked) {
+      return None
     }
 
     markGroup(status.tail, group, newMarkStatus)
@@ -121,6 +123,7 @@ object Day12Challenge:
     val group = groups.head
     val skippedOperationalCount =
       status.drop(position).takeWhile(_ == SpringStatus.Operational.getValue()).length()
+    // TODO reduce last element
     val groupRange = Range(position + skippedOperationalCount, status.length()).par
     groupRange.flatMap(curPosition => {
       val result = markContinuesGroup(status, group, curPosition)
@@ -145,7 +148,8 @@ object Day12Challenge:
     groups.zip(statusParts).forall(tuple => tuple._1 == tuple._2.length())
   }
 
-  def hotSpringCombinations(springRow: SpringRow) = {
+  def hotSpringCombinations(springRow: SpringRow): Long = {
+    val before = System.currentTimeMillis
     val comb = markGroups(springRow.status, springRow.groups)
       .filter(newStatus => {
         newStatus match {
@@ -156,8 +160,8 @@ object Day12Challenge:
       .flatten
       .toSet
       .size
-
-    println(comb)
+    val totalTime = System.currentTimeMillis - before
+    println(f"${comb} = ${totalTime / 1000}")
     comb
   }
 
@@ -165,7 +169,7 @@ object Day12Challenge:
     Using.Manager { use =>
       try {
         val springsData =
-          use(Source.fromResource("day12/smallInput.txt")).getLines().toSeq
+          use(Source.fromResource("day12/input.txt")).getLines().toSeq
         val springRows = parseSpringData(springsData)
         val hotSpringCombinationsSum = springRows.par.map(hotSpringCombinations).sum
         println(f"Hot springs combinations count: ${hotSpringCombinationsSum}")
