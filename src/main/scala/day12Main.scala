@@ -1,6 +1,8 @@
 import scala.annotation.tailrec
 import scala.io.Source
 import scala.util.Using
+import scala.collection.parallel.CollectionConverters._
+import scala.collection.parallel.immutable.ParSeq
 
 object Day12Challenge:
 
@@ -17,16 +19,27 @@ object Day12Challenge:
         case '#' => "#"
         case '?' => """?"""
 
-  case class SpringRow(status: String, groups: Seq[Int])
+  case class SpringRow(status: String, groups: Seq[Int]) {
+    def unwrap(n: Int = 1) = {
+      Range(0, n).foldLeft(this)((springRow, i) =>
+        springRow.copy(
+          status = f"${springRow.status}${SpringStatus.Unknown.getValueStr()}${status}",
+          groups = springRow.groups.concat(groups)
+        )
+      )
+    }
+  }
 
   def parseSpringData(springData: Seq[String]) =
-    springData.map(curSpringData => {
-      val springsAndCounts = curSpringData.split(" ")
-      val springs = springsAndCounts(0)
-      val count = springsAndCounts(1).split(",").map(_.toInt).toSeq
+    springData
+      .takeWhile(!_.isEmpty())
+      .map(curSpringData => {
+        val springsAndCounts = curSpringData.split(" ")
+        val springs = springsAndCounts(0)
+        val count = springsAndCounts(1).split(",").map(_.toInt).toSeq
 
-      SpringRow(springs, count)
-    })
+        SpringRow(springs, count)
+      })
 
   case class MarkStatus(
       unknownCount: Int = 0,
@@ -51,22 +64,28 @@ object Day12Challenge:
     }
   }
 
-  def markContinuesGroup(status: String, group: Int, position: Int = 0): Option[(String, Int)] = {
-    val markStatus = status
-      .slice(position, status.length())
-      .zipWithIndex
-      .foldLeft(MarkStatus())((markStatus, inxStatus) => {
-        val (curStatus, idx) = inxStatus
-        if (markStatus.matchGroup(group)) {
-          markStatus
-        } else {
-          markStatus.markStatus(curStatus, position + idx + 1)
-        }
-      })
-
-    if (!markStatus.matchGroup(group)) {
+  def markGroup(status: Seq[(Char, Int)], group: Int, markStatus: MarkStatus = MarkStatus()): Option[MarkStatus] = {
+    if (status.isEmpty) {
       return None
     }
+
+    val (curStatus, idx) = status.head
+    val newMarkStatus = markStatus.markStatus(curStatus, idx + 1)
+    if (newMarkStatus.matchGroup(group)) {
+      return Some(newMarkStatus)
+    }
+
+    markGroup(status.tail, group, newMarkStatus)
+  }
+
+  def markContinuesGroup(status: String, group: Int, position: Int = 0): Option[(String, Int)] = {
+    val markStatusWithNoPosition = markGroup(status.slice(position, status.length()).zipWithIndex, group)
+    if (markStatusWithNoPosition.isEmpty) {
+      return None
+    }
+
+    val markStatus =
+      markStatusWithNoPosition.get.copy(latestPosition = position + markStatusWithNoPosition.get.latestPosition)
 
     val afterStatus =
       status.lift(markStatus.latestPosition).getOrElse(SpringStatus.Operational.getValue())
@@ -91,8 +110,8 @@ object Day12Challenge:
       status: String,
       groups: Seq[Int],
       position: Int = 0,
-      markedStatus: Seq[Option[String]] = Seq()
-  ): Seq[Option[String]] = {
+      markedStatus: ParSeq[Option[String]] = ParSeq()
+  ): ParSeq[Option[String]] = {
     if (groups.isEmpty) {
       return markedStatus :+ Some(
         status.replace(SpringStatus.Unknown.getValueStr(), SpringStatus.Operational.getValueStr())
@@ -101,8 +120,8 @@ object Day12Challenge:
 
     val group = groups.head
     val skippedOperationalCount =
-      status.slice(position, status.length()).takeWhile(_ == SpringStatus.Operational.getValue()).length()
-    val groupRange = Range(position + skippedOperationalCount, status.length())
+      status.drop(position).takeWhile(_ == SpringStatus.Operational.getValue()).length()
+    val groupRange = Range(position + skippedOperationalCount, status.length()).par
     groupRange.flatMap(curPosition => {
       val result = markContinuesGroup(status, group, curPosition)
       result match {
@@ -127,24 +146,28 @@ object Day12Challenge:
   }
 
   def hotSpringCombinations(springRow: SpringRow) = {
-    markGroups(springRow.status, springRow.groups)
+    val comb = markGroups(springRow.status, springRow.groups)
       .filter(newStatus => {
         newStatus match {
           case Some(value) => patternMatch(value, springRow.groups)
           case _           => false
         }
       })
-      .distinct
-      .length
+      .flatten
+      .toSet
+      .size
+
+    println(comb)
+    comb
   }
 
   @main def day12Main(): Unit =
     Using.Manager { use =>
       try {
         val springsData =
-          use(Source.fromResource("day12/input.txt")).getLines().toSeq
+          use(Source.fromResource("day12/smallInput.txt")).getLines().toSeq
         val springRows = parseSpringData(springsData)
-        val hotSpringCombinationsSum = springRows.map(hotSpringCombinations).sum
+        val hotSpringCombinationsSum = springRows.par.map(hotSpringCombinations).sum
         println(f"Hot springs combinations count: ${hotSpringCombinationsSum}")
 
       } catch {
