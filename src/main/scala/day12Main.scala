@@ -17,16 +17,27 @@ object Day12Challenge:
         case '#' => "#"
         case '?' => """?"""
 
-  case class SpringRow(status: String, groups: Seq[Int])
+  case class SpringRow(status: String, groups: Seq[Int]) {
+    def unwrap(n: Int = 1) = {
+      Range(0, n).foldLeft(this)((springRow, i) =>
+        springRow.copy(
+          status = f"${springRow.status}${SpringStatus.Unknown.getValueStr()}${status}",
+          groups = springRow.groups.concat(groups)
+        )
+      )
+    }
+  }
 
   def parseSpringData(springData: Seq[String]) =
-    springData.map(curSpringData => {
-      val springsAndCounts = curSpringData.split(" ")
-      val springs = springsAndCounts(0)
-      val count = springsAndCounts(1).split(",").map(_.toInt).toSeq
+    springData
+      .takeWhile(!_.isEmpty())
+      .map(curSpringData => {
+        val springsAndCounts = curSpringData.split(" ")
+        val springs = springsAndCounts(0)
+        val count = springsAndCounts(1).split(",").map(_.toInt).toSeq
 
-      SpringRow(springs, count)
-    })
+        SpringRow(springs, count)
+      })
 
   case class MarkStatus(
       unknownCount: Int = 0,
@@ -136,6 +147,48 @@ object Day12Challenge:
       })
       .distinct
       .length
+      .toLong
+  }
+
+  def yu(springRow: SpringRow) = {
+    val springMarkedGroups = markGroups(springRow.status, springRow.groups)
+      .filter(newStatus => {
+        newStatus match {
+          case Some(value) => patternMatch(value, springRow.groups)
+          case _           => false
+        }
+      })
+      .flatten
+      .distinct
+      .length
+      .toLong
+    val unwrappedSpringRow = springRow.unwrap()
+    val unwrappedSpringMarkedGroups = markGroups(unwrappedSpringRow.status, unwrappedSpringRow.groups)
+      .filter(newStatus => {
+        newStatus match {
+          case Some(value) => patternMatch(value, unwrappedSpringRow.groups)
+          case _           => false
+        }
+      })
+      .flatten
+      .distinct
+      .length
+      .toLong
+
+    // val groups = springMarkedGroups
+    //   .map(markedGroup => {
+    //     val unwrappedMarkedGroups = unwrappedSpringMarkedGroups.filter(_.startsWith(markedGroup))
+    //     markedGroup -> unwrappedMarkedGroups.distinct.length
+    //   })
+    //   .toMap
+    // println(unwrappedSpringMarkedGroups.length)
+    // println(f"${springRow.status} - ${groups.size} ${groups.values.sum}")
+    val diff = unwrappedSpringMarkedGroups / springMarkedGroups
+    // println(diff)
+    val comb = diff * diff * diff * diff * springMarkedGroups
+    println(comb)
+    comb
+    // println(unwrappedSpringMarkedGroups)
   }
 
   @main def day12Main(): Unit =
@@ -146,7 +199,11 @@ object Day12Challenge:
         val springRows = parseSpringData(springsData)
         val hotSpringCombinationsSum = springRows.map(hotSpringCombinations).sum
         println(f"Hot springs combinations count: ${hotSpringCombinationsSum}")
-
+        val a = springRows.map(yu(_)).sum
+        println(a)
+        // val unwrappedSpringRows = springRows.map(_.unwrap(2))
+        // val hotSpringCombinationsSum1 = unwrappedSpringRows.map(hotSpringCombinations).sum
+        // println(f"Hot springs combinations count: ${hotSpringCombinationsSum1}")
       } catch {
         case e: RuntimeException => e.printStackTrace()
       }
